@@ -38,6 +38,9 @@ export interface AppContextType {
   deleteSpellingList: (id: string) => Promise<void>;
   saveLimit: number | null;
   currentSaveCount: number;
+  proofreadingPractices: ProofreadingPractice[];
+  addProofreadingPractice: (title: string, sentences: string[], answers: ProofreadingAnswer[]) => Promise<boolean>;
+  deleteProofreadingPractice: (id: string) => Promise<void>;
 }
 
 export type AppPage = 'new' | 'saved' | 'admin' | 'publicPractice' | 'proofreading';
@@ -208,6 +211,29 @@ export interface AssignedMemorizationContent {
   title: string;
   original_text: string;
   selected_word_indices: number[];
+  assigned_at: string;
+  due_date?: string;
+  completed: boolean;
+  completed_at?: string;
+  assigned_by_username: string;
+}
+
+export interface ProofreadingPractice {
+  id: string;
+  user_id: string;
+  title: string;
+  sentences: string[];
+  answers: ProofreadingAnswer[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignedProofreadingPracticeContent {
+  id: string;
+  practice_id: string;
+  title: string;
+  sentences: string[];
+  answers: ProofreadingAnswer[];
   assigned_at: string;
   due_date?: string;
   completed: boolean;

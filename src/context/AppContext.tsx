@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList } from '../types';
+import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList, ProofreadingPractice, ProofreadingAnswer } from '../types';
 import { supabase } from '../lib/supabase';
 import { processText } from '../utils/textProcessor';
 
@@ -13,6 +13,7 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) => {
   const [savedContents, setSavedContents] = useState<SavedContent[]>([]);
   const [spellingLists, setSpellingLists] = useState<SpellingPracticeList[]>([]);
+  const [proofreadingPractices, setProofreadingPractices] = useState<ProofreadingPractice[]>([]);
   const [currentContent, setCurrentContent] = useState<MemorizationState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveLimit, setSaveLimit] = useState<number | null>(null);
@@ -100,6 +101,44 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     };
 
     fetchSpellingLists();
+  }, [userId]);
+
+  useEffect(() => {
+    const fetchProofreadingPractices = async () => {
+      if (!userId) {
+        setProofreadingPractices([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('proofreading_practices')
+          .select('id, user_id, title, sentences, answers, created_at, updated_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching proofreading practices:', error);
+          setProofreadingPractices([]);
+        } else {
+          const formattedData = data.map((item: any) => ({
+            id: item.id,
+            user_id: item.user_id,
+            title: item.title,
+            sentences: item.sentences,
+            answers: item.answers,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+          }));
+          setProofreadingPractices(formattedData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch proofreading practices:', error);
+        setProofreadingPractices([]);
+      }
+    };
+
+    fetchProofreadingPractices();
   }, [userId]);
 
   const addSavedContent = async (content: Omit<SavedContent, 'id' | 'createdAt'>): Promise<boolean> => {
@@ -304,6 +343,71 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     }
   };
 
+  const addProofreadingPractice = async (title: string, sentences: string[], answers: ProofreadingAnswer[]): Promise<boolean> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('proofreading_practices')
+        .insert([{
+          user_id: userId,
+          title,
+          sentences,
+          answers,
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding proofreading practice:', error);
+        return false;
+      }
+
+      const newPractice: ProofreadingPractice = {
+        id: data.id,
+        user_id: data.user_id,
+        title: data.title,
+        sentences: data.sentences,
+        answers: data.answers,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      setProofreadingPractices(prev => [newPractice, ...prev]);
+      return true;
+    } catch (error) {
+      console.error('Failed to add proofreading practice:', error);
+      return false;
+    }
+  };
+
+  const deleteProofreadingPractice = async (id: string): Promise<void> => {
+    if (!userId) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('proofreading_practices')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error deleting proofreading practice:', error);
+        return;
+      }
+
+      setProofreadingPractices(prev => prev.filter(practice => practice.id !== id));
+    } catch (error) {
+      console.error('Failed to delete proofreading practice:', error);
+    }
+  };
+
   const value: AppContextType = {
     savedContents,
     addSavedContent,
@@ -318,6 +422,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId }) =>
     deleteSpellingList,
     saveLimit,
     currentSaveCount,
+    proofreadingPractices,
+    addProofreadingPractice,
+    deleteProofreadingPractice,
   };
 
   return (
