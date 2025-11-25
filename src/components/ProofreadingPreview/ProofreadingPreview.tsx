@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Save, CheckCircle, XCircle } from 'lucide-react';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { useAppContext } from '../../context/AppContext';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 
 interface ProofreadingPreviewProps {
@@ -21,7 +20,6 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
   onViewSaved,
 }) => {
   const { user } = useAuth();
-  const { addProofreadingPractice } = useAppContext();
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
@@ -154,15 +152,34 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
     setSaveSuccess(false);
 
     try {
-      const success = await addProofreadingPractice(practiceTitle.trim(), sentences, answers);
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-practices/create`;
 
-      if (!success) {
-        throw new Error('Failed to save practice');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: practiceTitle.trim(),
+          sentences,
+          answers,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save practice');
       }
 
       setSaveSuccess(true);
-      setShowSaveModal(false);
-      setPracticeTitle('');
+      setTimeout(() => {
+        setShowSaveModal(false);
+        setPracticeTitle('');
+        setSaveError(null);
+      }, 1500);
     } catch (error) {
       console.error('Error saving practice:', error);
       setSaveError(error instanceof Error ? error.message : 'Failed to save practice');
@@ -204,15 +221,6 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
                   <p className="text-green-700 font-medium">
                     Practice saved successfully! You can now assign it to students.
                   </p>
-                </div>
-              </div>
-            )}
-
-            {saveError && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex items-center space-x-3">
-                  <XCircle size={24} className="text-red-600" />
-                  <p className="text-red-700 font-medium">{saveError}</p>
                 </div>
               </div>
             )}
@@ -419,6 +427,22 @@ const ProofreadingPreview: React.FC<ProofreadingPreviewProps> = ({
               <div className="text-sm text-gray-600">
                 <p>{sentences.length} sentence{sentences.length !== 1 ? 's' : ''} with answer keys will be saved.</p>
               </div>
+              {saveError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <XCircle size={20} className="text-red-600 flex-shrink-0" />
+                    <p className="text-red-700 text-sm font-medium">{saveError}</p>
+                  </div>
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
+                    <p className="text-green-700 text-sm font-medium">Practice saved successfully!</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex space-x-3 mt-6">
               <button
