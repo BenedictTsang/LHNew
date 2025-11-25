@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList } from 'lucide-react';
+import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => void;
   userRole: string | null;
   onLogin?: () => void;
 }
@@ -97,18 +97,32 @@ const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, user
           )}
 
           {userRole === 'admin' && (
-            <button
-              onClick={() => onPageChange('admin')}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-                currentPage === 'admin'
-                  ? 'bg-red-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              data-source-tsx="Navigation Admin Button|src/components/Navigation/Navigation.tsx"
-            >
-              <Shield size={22} />
-              <span>Admin Panel</span>
-            </button>
+            <>
+              <button
+                onClick={() => onPageChange('admin')}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                  currentPage === 'admin'
+                    ? 'bg-red-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                data-source-tsx="Navigation Admin Button|src/components/Navigation/Navigation.tsx"
+              >
+                <Shield size={22} />
+                <span>Admin Panel</span>
+              </button>
+              <button
+                onClick={() => onPageChange('database')}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                  currentPage === 'database'
+                    ? 'bg-green-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                data-source-tsx="Navigation Database Button|src/components/Navigation/Navigation.tsx"
+              >
+                <Database size={22} />
+                <span>Database</span>
+              </button>
+            </>
           )}
         </div>
 

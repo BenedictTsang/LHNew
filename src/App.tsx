@@ -21,6 +21,7 @@ import ProofreadingAssignment from './components/ProofreadingAssignment/Proofrea
 import AssignedProofreadingPractices from './components/AssignedProofreadingPractices/AssignedProofreadingPractices';
 import SourceInspector from './components/SourceInspector/SourceInspector';
 import AdminPanel from './components/AdminPanel/AdminPanel';
+import ContentDatabase from './components/ContentDatabase/ContentDatabase';
 import StudentProgress from './components/StudentProgress/StudentProgress';
 import UserAnalytics from './components/UserAnalytics/UserAnalytics';
 import AssignedMemorizations from './components/AssignedMemorizations/AssignedMemorizations';
@@ -34,6 +35,7 @@ type AppState =
   | { page: 'new'; step: 'memorization'; words: Word[]; selectedIndices: number[]; text: string }
   | { page: 'saved' }
   | { page: 'admin' }
+  | { page: 'database' }
   | { page: 'practice'; memorizationState: MemorizationState }
   | { page: 'publicPractice'; memorizationState: MemorizationState }
   | { page: 'proofreading'; step: 'input' }
@@ -71,6 +73,7 @@ function AppContent() {
       const isRestrictedState =
         appState.page === 'saved' ||
         appState.page === 'admin' ||
+        appState.page === 'database' ||
         (appState.page === 'spelling' && appState.step === 'saved') ||
         appState.page === 'practice';
 
@@ -123,7 +126,7 @@ function AppContent() {
   }
 
   // Check if user is trying to access restricted pages
-  const isRestrictedPage = appState.page === 'saved' || appState.page === 'admin';
+  const isRestrictedPage = appState.page === 'saved' || appState.page === 'admin' || appState.page === 'database';
 
   if (!user && isRestrictedPage) {
     return <Login />;
@@ -148,9 +151,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'proofreadingAssignments')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'proofreadingAssignments')) {
       setShowLoginModal(true);
       return;
     }
@@ -176,6 +179,8 @@ function AppContent() {
       setAppState({ page: 'saved' });
     } else if (page === 'admin') {
       setAppState({ page: 'admin' });
+    } else if (page === 'database') {
+      setAppState({ page: 'database' });
     } else if (page === 'proofreading') {
       // Admins go to input, students go to assignments
       if (user?.role === 'admin') {
@@ -395,6 +400,8 @@ function AppContent() {
         return <SavedContent onLoadContent={handleLoadContent} onCreateNew={handleCreateNewMemorization} />;
       case 'admin':
         return <AdminPanel />;
+      case 'database':
+        return <ContentDatabase />;
       case 'practice':
         return (
           <MemorizationView
@@ -564,7 +571,7 @@ function AppContent() {
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -579,6 +586,9 @@ function AppContent() {
     }
     if (appState.page === 'admin') {
       return 'admin';
+    }
+    if (appState.page === 'database') {
+      return 'database';
     }
     if (appState.page === 'progress') {
       return 'progress';
