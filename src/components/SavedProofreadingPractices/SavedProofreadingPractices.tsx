@@ -179,7 +179,7 @@ const SavedProofreadingPractices: React.FC<SavedProofreadingPracticesProps> = ({
                       )}
 
                       <div className="text-xs text-gray-500 mb-4">
-                        Created {practice.createdAt.toLocaleDateString()}
+                        Created {new Date(practice.created_at).toLocaleDateString()}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
