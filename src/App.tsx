@@ -10,6 +10,7 @@ import MemorizationView from './components/MemorizationView/MemorizationView';
 import SavedContent from './components/SavedContent/SavedContent';
 import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
 import ProofreadingAnswerSetting from './components/ProofreadingAnswerSetting/ProofreadingAnswerSetting';
+import ProofreadingPreview from './components/ProofreadingPreview/ProofreadingPreview';
 import ProofreadingPracticeComponent from './components/ProofreadingPractice/ProofreadingPractice';
 import SpellingInput from './components/SpellingInput/SpellingInput';
 import SpellingPreview from './components/SpellingPreview/SpellingPreview';
@@ -37,6 +38,7 @@ type AppState =
   | { page: 'publicPractice'; memorizationState: MemorizationState }
   | { page: 'proofreading'; step: 'input' }
   | { page: 'proofreading'; step: 'answerSetting'; sentences: string[] }
+  | { page: 'proofreading'; step: 'preview'; sentences: string[]; answers: ProofreadingAnswer[] }
   | { page: 'proofreading'; step: 'practice'; sentences: string[]; answers: ProofreadingAnswer[] }
   | { page: 'proofreading'; step: 'saved' }
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
@@ -265,7 +267,19 @@ function AppContent() {
 
   const handleProofreadingAnswersSet = (answers: ProofreadingAnswer[]) => {
     if (appState.page === 'proofreading' && appState.step === 'answerSetting') {
-      setAppState({ page: 'proofreading', step: 'practice', sentences: appState.sentences, answers });
+      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers });
+    }
+  };
+
+  const handleProofreadingPreviewNext = () => {
+    if (appState.page === 'proofreading' && appState.step === 'preview') {
+      setAppState({ page: 'proofreading', step: 'practice', sentences: appState.sentences, answers: appState.answers });
+    }
+  };
+
+  const handleBackToProofreadingPreview = () => {
+    if (appState.page === 'proofreading' && appState.step === 'practice') {
+      setAppState({ page: 'proofreading', step: 'preview', sentences: appState.sentences, answers: appState.answers });
     }
   };
 
@@ -274,21 +288,13 @@ function AppContent() {
   };
 
   const handleBackToAnswerSetting = () => {
-    if (appState.page === 'proofreading' && appState.step === 'practice') {
+    if (appState.page === 'proofreading' && appState.step === 'preview') {
       setAppState({ page: 'proofreading', step: 'answerSetting', sentences: appState.sentences });
     }
   };
 
-  const handleSaveProofreadingPractice = async (title: string, answers: ProofreadingAnswer[]) => {
-    if (appState.page === 'proofreading' && appState.step === 'answerSetting') {
-      const success = await addProofreadingPractice(title, appState.sentences, answers);
-      if (success) {
-        alert('Practice saved successfully!');
-        setAppState({ page: 'proofreading', step: 'saved' });
-      } else {
-        alert('Failed to save practice. Please try again.');
-      }
-    }
+  const handleSaveProofreadingPractice = () => {
+    setAppState({ page: 'proofreading', step: 'saved' });
   };
 
   const handleViewSavedProofreading = () => {
@@ -296,7 +302,11 @@ function AppContent() {
   };
 
   const handleSelectProofreadingPractice = (practice: ProofreadingPractice) => {
-    setAppState({ page: 'proofreading', step: 'practice', sentences: practice.sentences, answers: practice.answers });
+    if (user?.role === 'admin') {
+      setAppState({ page: 'proofreading', step: 'preview', sentences: practice.sentences, answers: practice.answers });
+    } else {
+      setAppState({ page: 'proofreading', step: 'practice', sentences: practice.sentences, answers: practice.answers });
+    }
   };
 
   const handleAssignProofreadingPractice = (practice: ProofreadingPractice) => {
@@ -421,7 +431,16 @@ function AppContent() {
                 sentences={appState.sentences}
                 onNext={handleProofreadingAnswersSet}
                 onBack={handleBackToProofreadingInput}
-                onSave={user?.role === 'admin' ? handleSaveProofreadingPractice : undefined}
+                onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
+              />
+            );
+          case 'preview':
+            return (
+              <ProofreadingPreview
+                sentences={appState.sentences}
+                answers={appState.answers}
+                onNext={handleProofreadingPreviewNext}
+                onBack={handleBackToAnswerSetting}
                 onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
               />
             );
@@ -430,7 +449,7 @@ function AppContent() {
               <ProofreadingPracticeComponent
                 sentences={appState.sentences}
                 answers={appState.answers}
-                onBack={handleBackToAnswerSetting}
+                onBack={handleBackToProofreadingPreview}
                 onViewSaved={user?.role === 'admin' ? handleViewSavedProofreading : undefined}
               />
             );

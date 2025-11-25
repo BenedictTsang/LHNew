@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Sparkles, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { ProofreadingSentence, ProofreadingWord, ProofreadingAnswer } from '../../types';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 
@@ -7,7 +7,6 @@ interface ProofreadingAnswerSettingProps {
   sentences: string[];
   onNext: (answers: ProofreadingAnswer[]) => void;
   onBack: () => void;
-  onSave?: (title: string, answers: ProofreadingAnswer[]) => Promise<void>;
   onViewSaved?: () => void;
 }
 
@@ -15,16 +14,12 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
   sentences,
   onNext,
   onBack,
-  onSave,
   onViewSaved,
 }) => {
   const [parsedSentences, setParsedSentences] = useState<ProofreadingSentence[]>([]);
   const [selectedWords, setSelectedWords] = useState<Map<number, number>>(new Map());
   const [corrections, setCorrections] = useState<Map<number, string>>(new Map());
   const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [practiceTitle, setPracticeTitle] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const parsed = sentences.map((sentence, lineNumber) => {
@@ -166,46 +161,6 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
     }
   };
 
-  const handleSaveClick = () => {
-    if (!hasAllAnswers()) {
-      alert('Please set all answer keys before saving.');
-      return;
-    }
-    setShowSaveModal(true);
-  };
-
-  const handleSaveConfirm = async () => {
-    if (!practiceTitle.trim()) {
-      alert('Please enter a practice title.');
-      return;
-    }
-
-    if (!onSave) return;
-
-    setIsSaving(true);
-    try {
-      const answers: ProofreadingAnswer[] = [];
-      selectedWords.forEach((wordIndex, lineNumber) => {
-        const correction = corrections.get(lineNumber) || '';
-        if (correction.trim()) {
-          answers.push({
-            lineNumber,
-            wordIndex,
-            correction: correction.trim(),
-          });
-        }
-      });
-
-      await onSave(practiceTitle.trim(), answers);
-      setShowSaveModal(false);
-      setPracticeTitle('');
-    } catch (error) {
-      console.error('Error saving practice:', error);
-      alert('Failed to save practice. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <>
@@ -343,78 +298,20 @@ const ProofreadingAnswerSetting: React.FC<ProofreadingAnswerSettingProps> = ({
               <span>Back</span>
             </button>
 
-            <div className="flex space-x-4">
-              {onSave && (
-                <button
-                  onClick={handleSaveClick}
-                  disabled={!hasAllAnswers()}
-                  className="flex items-center space-x-2 px-8 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                  data-source-tsx="ProofreadingAnswerSetting Save Button|src/components/ProofreadingAnswerSetting/ProofreadingAnswerSetting.tsx"
-                >
-                  <Save size={20} />
-                  <span>Save Practice</span>
-                </button>
-              )}
-
-              <button
+            <button
                 onClick={handleSubmit}
                 disabled={!hasAllAnswers()}
                 className="flex items-center space-x-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 data-source-tsx="ProofreadingAnswerSetting Next Button|src/components/ProofreadingAnswerSetting/ProofreadingAnswerSetting.tsx"
               >
-                <span>Next</span>
-                <ArrowRight size={20} />
-              </button>
-            </div>
+              <span>Next</span>
+              <ArrowRight size={20} />
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-      {showSaveModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Save Practice</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Practice Title
-                </label>
-                <input
-                  type="text"
-                  value={practiceTitle}
-                  onChange={(e) => setPracticeTitle(e.target.value)}
-                  placeholder="Enter practice title"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
-                  autoFocus
-                />
-              </div>
-              <div className="text-sm text-gray-600">
-                <p>{sentences.length} sentence{sentences.length !== 1 ? 's' : ''} with answer keys will be saved.</p>
-              </div>
-            </div>
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowSaveModal(false);
-                  setPracticeTitle('');
-                }}
-                disabled={isSaving}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveConfirm}
-                disabled={isSaving || !practiceTitle.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
