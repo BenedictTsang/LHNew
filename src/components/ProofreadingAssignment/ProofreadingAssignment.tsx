@@ -20,7 +20,9 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
   const { user: currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [assignments, setAssignments] = useState<Set<string>>(new Set());
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [view, setView] = useState<'assign' | 'preview'>('assign');
@@ -73,49 +75,75 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
     }
   };
 
-  const toggleAssignment = async (userId: string) => {
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.id)));
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedUsers.size === 0) return;
+
+    const usersToAssign = Array.from(selectedUsers).filter(userId => !assignments.has(userId));
+
+    if (usersToAssign.length === 0) {
+      setError('Selected users are already assigned to this practice');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    if (usersToAssign.length > 5) {
+      const confirmed = window.confirm(
+        `Are you sure you want to assign this practice to ${usersToAssign.length} students?`
+      );
+      if (!confirmed) return;
+    }
+
     try {
+      setAssigning(true);
       setError(null);
       setSuccess(null);
 
-      const isAssigned = assignments.has(userId);
+      if (!currentUser?.id) throw new Error('User not authenticated');
 
-      if (isAssigned) {
-        const { error: deleteError } = await supabase
-          .from('proofreading_practice_assignments')
-          .delete()
-          .eq('practice_id', practice.id)
-          .eq('user_id', userId);
+      const insertData = usersToAssign.map(userId => ({
+        practice_id: practice.id,
+        user_id: userId,
+        assigned_by: currentUser.id,
+      }));
 
-        if (deleteError) throw deleteError;
+      const { error: insertError } = await supabase
+        .from('proofreading_practice_assignments')
+        .insert(insertData);
 
-        const newAssignments = new Set(assignments);
-        newAssignments.delete(userId);
-        setAssignments(newAssignments);
-        setSuccess('Assignment removed successfully');
-      } else {
-        if (!currentUser?.id) throw new Error('User not authenticated');
+      if (insertError) throw insertError;
 
-        const { error: insertError } = await supabase
-          .from('proofreading_practice_assignments')
-          .insert({
-            practice_id: practice.id,
-            user_id: userId,
-            assigned_by: currentUser.id,
-          });
+      const newAssignments = new Set(assignments);
+      usersToAssign.forEach(userId => newAssignments.add(userId));
+      setAssignments(newAssignments);
+      setSelectedUsers(new Set());
+      setSuccess(`Successfully assigned practice to ${usersToAssign.length} student${usersToAssign.length !== 1 ? 's' : ''}`);
 
-        if (insertError) throw insertError;
-
-        const newAssignments = new Set(assignments);
-        newAssignments.add(userId);
-        setAssignments(newAssignments);
-        setSuccess('Practice assigned successfully');
-      }
-
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
-      console.error('Error toggling assignment:', err);
-      setError('Failed to update assignment');
+      console.error('Error assigning practice:', err);
+      setError('Failed to assign practice to selected students');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -191,53 +219,94 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
           </div>
 
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
-              <Users size={24} />
-              <span>Assign to Students</span>
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center space-x-2">
+                <Users size={24} />
+                <span>Assign to Students</span>
+              </h2>
+              {users.length > 0 && (
+                <label className="flex items-center space-x-2 cursor-pointer text-gray-700 hover:text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.size === users.length && users.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="font-medium">Select All</span>
+                </label>
+              )}
+            </div>
 
             {users.length === 0 ? (
               <div className="text-center py-8 bg-gray-50 rounded-lg">
                 <p className="text-gray-600">No students found. Create student accounts first.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {users.map((user) => {
-                  const isAssigned = assignments.has(user.id);
-                  return (
-                    <div
-                      key={user.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-                        isAssigned
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        {isAssigned ? (
-                          <CheckCircle size={24} className="text-green-600" />
-                        ) : (
-                          <XCircle size={24} className="text-gray-400" />
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-800">{user.username}</p>
-                          <p className="text-sm text-gray-500 capitalize">{user.role}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => toggleAssignment(user.id)}
-                        className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+              <>
+                <div className="space-y-2 mb-4">
+                  {users.map((user) => {
+                    const isAssigned = assignments.has(user.id);
+                    const isSelected = selectedUsers.has(user.id);
+                    return (
+                      <div
+                        key={user.id}
+                        onClick={() => toggleUserSelection(user.id)}
+                        className={`flex items-center p-4 rounded-lg border-2 transition-all cursor-pointer ${
                           isAssigned
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'bg-green-600 text-white hover:bg-green-700'
+                            ? 'bg-green-50 border-green-300'
+                            : isSelected
+                            ? 'bg-blue-50 border-blue-300'
+                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        {isAssigned ? 'Remove' : 'Assign'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleUserSelection(user.id)}
+                          className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex items-center flex-1 ml-3 space-x-3">
+                          {isAssigned && <CheckCircle size={20} className="text-green-600" />}
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800">{user.username}</p>
+                            <p className="text-sm text-gray-500 capitalize">{user.role}</p>
+                          </div>
+                          {isAssigned && (
+                            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                              Already Assigned
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {selectedUsers.size > 0 && (
+                  <div className="flex items-center justify-between p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                    <p className="text-blue-800 font-medium">
+                      {selectedUsers.size} student{selectedUsers.size !== 1 ? 's' : ''} selected
+                    </p>
+                    <button
+                      onClick={handleBulkAssign}
+                      disabled={assigning}
+                      className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      {assigning ? (
+                        <>
+                          <span>Assigning...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Users size={20} />
+                          <span>Assign to Selected</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
