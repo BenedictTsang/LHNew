@@ -43,11 +43,47 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
     level?: string;
     count?: number;
   }): Promise<string[]> => {
-    // Default backend route - implement server side at /api/generate-sentences
+    // Try Supabase Edge Function first (same method as in ProofreadingAnswerSetting)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    const body = {
+      grammar: opts.grammar,
+      topic: opts.topic,
+      level: opts.level,
+      count: opts.count,
+    };
+
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const apiUrl = `${supabaseUrl}/functions/v1/ai-generate-sentences`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => null);
+          throw new Error(errorData?.error || 'AI generation via Supabase failed');
+        }
+
+        const data = await res.json().catch(() => ({}));
+        return Array.isArray(data.sentences) ? data.sentences : [];
+      } catch (err: any) {
+        // If Supabase call errors, fall back to local API route below
+        console.warn('Supabase AI generation failed, falling back to /api/generate-sentences:', err);
+      }
+    }
+
+    // Fallback: local backend route - implement server side at /api/generate-sentences
     const res = await fetch('/api/generate-sentences', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(opts),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
