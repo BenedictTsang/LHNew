@@ -1,14 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ArrowRight } from 'lucide-react';
 import ProofreadingTopNav from '../ProofreadingTopNav/ProofreadingTopNav';
 
 interface ProofreadingInputProps {
   onNext: (sentences: string[]) => void;
   onViewSaved?: () => void;
+  generateSentences?: (opts: {
+    grammar: string;
+    topic?: string;
+    level?: 'beginner' | 'intermediate' | 'advanced';
+    count?: number;
+  }) => Promise<string[]>;
 }
 
-const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSaved }) => {
+const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSaved, generateSentences }) => {
   const [text, setText] = useState('');
+  const [grammar, setGrammar] = useState('');
+  const [topic, setTopic] = useState('');
+  const [level, setLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
+  const [count, setCount] = useState(5);
+  const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +34,60 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
       if (sentences.length > 0) {
         onNext(sentences);
       }
+    }
+  };
+
+  const defaultGenerate = async (opts: {
+    grammar: string;
+    topic?: string;
+    level?: string;
+    count?: number;
+  }): Promise<string[]> => {
+    // Default backend route - implement server side at /api/generate-sentences
+    const res = await fetch('/api/generate-sentences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || 'Server error while generating sentences');
+    }
+    const data = await res.json();
+    // Expected response shape: { sentences: string[] }
+    return Array.isArray(data.sentences) ? data.sentences : [];
+  };
+
+  const handleGenerate = async () => {
+    if (!grammar.trim() && !topic.trim()) {
+      // prevent generating completely blank prompts
+      setGenerationError('Please provide target grammar items or a topic.');
+      return;
+    }
+
+    setGenerating(true);
+    setGenerationError(null);
+    try {
+      const opts = {
+        grammar: grammar.trim(),
+        topic: topic.trim() || undefined,
+        level,
+        count: Math.max(1, Math.min(20, Math.floor(count || 5))),
+      };
+
+      const sentences = await (generateSentences ? generateSentences(opts) : defaultGenerate(opts));
+      if (sentences.length > 0) {
+        setText(prev => (prev ? prev + '\n' + sentences.join('\n') : sentences.join('\n')));
+        // focus the textarea and jump to bottom so user can see generated sentences
+        setTimeout(() => textAreaRef.current?.focus(), 50);
+      } else {
+        setGenerationError('No sentences were returned from the generator.');
+      }
+    } catch (err: any) {
+      setGenerationError(err?.message || 'Failed to generate sentences');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -49,6 +116,64 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
             Proofreading Exercise
           </h1>
 
+          {/* AI Generation UI */}
+          <div className="mb-4 p-4 rounded border bg-gray-50">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Target grammar items</label>
+                <input
+                  value={grammar}
+                  onChange={(e) => setGrammar(e.target.value)}
+                  placeholder="e.g., past simple verbs, subject-verb agreement"
+                  className="mt-1 w-full p-2 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Topic (optional)</label>
+                <input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="e.g., school, sports, food"
+                  className="mt-1 w-full p-2 border rounded"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Level & Count</label>
+                <div className="flex gap-2 mt-1">
+                  <select value={level} onChange={(e) => setLevel(e.target.value as any)} className="p-2 border rounded">
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={count}
+                    onChange={(e) => setCount(Number(e.target.value))}
+                    className="w-20 p-2 border rounded"
+                    aria-label="sentence count"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-4 gap-2">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+              >
+                {generating ? 'Generating…' : 'Generate sentences'}
+              </button>
+            </div>
+
+            {generationError && (
+              <p className="mt-2 text-red-600 text-sm">{generationError}</p>
+            )}
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
@@ -60,6 +185,7 @@ const ProofreadingInput: React.FC<ProofreadingInputProps> = ({ onNext, onViewSav
               </label>
               <textarea
                 id="sentences-input"
+                ref={textAreaRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 className="w-full h-96 p-4 border-2 border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg leading-relaxed"
