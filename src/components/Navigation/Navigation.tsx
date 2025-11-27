@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database } from 'lucide-react';
+import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments') => void;
   userRole: string | null;
   onLogin?: () => void;
 }
@@ -98,6 +98,18 @@ const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, user
 
           {userRole === 'admin' && (
             <>
+              <button
+                onClick={() => onPageChange('assignmentManagement')}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                  currentPage === 'assignmentManagement'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                data-source-tsx="Navigation Assignment Management Button|src/components/Navigation/Navigation.tsx"
+              >
+                <FolderKanban size={22} />
+                <span>Assignment Management</span>
+              </button>
               <button
                 onClick={() => onPageChange('admin')}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${

@@ -25,6 +25,8 @@ import ContentDatabase from './components/ContentDatabase/ContentDatabase';
 import StudentProgress from './components/StudentProgress/StudentProgress';
 import UserAnalytics from './components/UserAnalytics/UserAnalytics';
 import AssignedMemorizations from './components/AssignedMemorizations/AssignedMemorizations';
+import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
+import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import { Login } from './components/Auth/Login';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
@@ -51,6 +53,7 @@ type AppState =
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
+  | { page: 'assignmentManagement' }
   | { page: 'proofreadingAssignments' }
   | { page: 'assignedPractice'; memorizationState: MemorizationState };
 
@@ -151,9 +154,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'proofreadingAssignments')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments')) {
       setShowLoginModal(true);
       return;
     }
@@ -199,6 +202,8 @@ function AppContent() {
       setAppState({ page: 'progress' });
     } else if (page === 'assignments') {
       setAppState({ page: 'assignments' });
+    } else if (page === 'assignmentManagement') {
+      setAppState({ page: 'assignmentManagement' });
     } else if (page === 'proofreadingAssignments') {
       setAppState({ page: 'proofreadingAssignments' });
     }
@@ -554,7 +559,22 @@ function AppContent() {
       case 'progress':
         return user?.role === 'admin' ? <UserAnalytics /> : <StudentProgress />;
       case 'assignments':
-        return <AssignedMemorizations onLoadContent={handleLoadAssignedContent} />;
+        return (
+          <UnifiedAssignments
+            onLoadMemorization={handleLoadAssignedContent}
+            onLoadSpelling={(practice) => {
+              setAppState({
+                page: 'spelling',
+                step: 'practice',
+                title: practice.title,
+                words: practice.words,
+              });
+            }}
+            onLoadProofreading={handleLoadAssignedProofreadingPractice}
+          />
+        );
+      case 'assignmentManagement':
+        return <AssignmentManagement />;
       case 'proofreadingAssignments':
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
       case 'assignedPractice':
@@ -571,7 +591,7 @@ function AppContent() {
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'proofreadingAssignments' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -595,6 +615,9 @@ function AppContent() {
     }
     if (appState.page === 'assignments' || appState.page === 'assignedPractice') {
       return 'assignments';
+    }
+    if (appState.page === 'assignmentManagement') {
+      return 'assignmentManagement';
     }
     return appState.page;
   };
