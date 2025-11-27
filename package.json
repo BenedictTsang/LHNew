@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:integration": "vitest run src/test/integration",
+    "test:auth": "vitest run src/test/integration/auth.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",
