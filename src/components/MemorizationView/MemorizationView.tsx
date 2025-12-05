@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, XCircle, Play, Pause, RotateCcw } from 'lucide-react';
 import { Word } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import MemorizationTopNav from '../MemorizationTopNav/MemorizationTopNav';
 import { supabase } from '../../lib/supabase';
+import { findBestVoiceMatch, isSpeechSynthesisSupported } from '../../utils/voiceManager';
 
 interface MemorizationViewProps {
   words: Word[];
@@ -29,13 +30,41 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
   const startTimeRef = useRef<number>(Date.now());
   const sessionSavedRef = useRef<boolean>(false);
 
+  // Audio control state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const isStoppingRef = useRef(false);
+
   const { addSavedContent, savedContents, saveLimit, currentSaveCount } = useAppContext();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, accentPreference } = useAuth();
 
   useEffect(() => {
     return () => {
       if (!sessionSavedRef.current && user && !isPublicView) {
         saveSession();
+      }
+    };
+  }, []);
+
+  // Load saved speed preference and check speech support
+  useEffect(() => {
+    const savedSpeed = localStorage.getItem('memorization-tts-speed');
+    if (savedSpeed) {
+      setPlaybackSpeed(parseFloat(savedSpeed));
+    }
+    setSpeechSupported(isSpeechSynthesisSupported());
+  }, []);
+
+  // Cleanup speech synthesis on unmount or navigation
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis.speaking) {
+        isStoppingRef.current = true;
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -140,6 +169,114 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     }
 
     return word;
+  };
+
+  // Audio control handlers
+  const handlePlay = async () => {
+    if (!speechSupported) return;
+
+    // Resume if paused
+    if (isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Stop any current playback
+    if (window.speechSynthesis.speaking) {
+      isStoppingRef.current = true;
+      window.speechSynthesis.cancel();
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    isStoppingRef.current = false;
+    setCurrentWordIndex(-1);
+
+    // Find the best voice
+    const voice = await findBestVoiceMatch(null, accentPreference);
+    if (!voice) {
+      console.error('No voice available');
+      return;
+    }
+
+    // Create utterance
+    const utterance = new SpeechSynthesisUtterance(originalText);
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+    utterance.rate = playbackSpeed;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    // Track word boundaries
+    utterance.onboundary = (event) => {
+      if (event.name === 'word' && !isStoppingRef.current) {
+        const charIndex = event.charIndex;
+        // Find which word index corresponds to this character position
+        let currentCharCount = 0;
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i];
+          if (word.isParagraphBreak || word.text === '\n' || word.text === '\r\n') {
+            continue;
+          }
+          const wordLength = word.text.length;
+          if (charIndex >= currentCharCount && charIndex < currentCharCount + wordLength) {
+            setCurrentWordIndex(word.index);
+            break;
+          }
+          currentCharCount += wordLength;
+        }
+      }
+    };
+
+    utterance.onend = () => {
+      if (!isStoppingRef.current) {
+        setIsPlaying(false);
+        setIsPaused(false);
+        setCurrentWordIndex(-1);
+      }
+    };
+
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      setIsPlaying(false);
+      setIsPaused(false);
+      setCurrentWordIndex(-1);
+    };
+
+    utteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+    setIsPlaying(true);
+    setIsPaused(false);
+  };
+
+  const handlePause = () => {
+    if (window.speechSynthesis.speaking && !isPaused) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+      setIsPlaying(false);
+    }
+  };
+
+  const handleReplay = () => {
+    isStoppingRef.current = true;
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setCurrentWordIndex(-1);
+    setTimeout(() => {
+      handlePlay();
+    }, 100);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+    localStorage.setItem('memorization-tts-speed', speed.toString());
+
+    // If currently playing, restart with new speed
+    if (isPlaying || isPaused) {
+      handleReplay();
+    }
   };
 
   const handleSave = async () => {
@@ -266,6 +403,58 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
               </div>
             </div>
 
+            {speechSupported && (
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-center space-x-6">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={handlePlay}
+                      disabled={isPlaying}
+                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      title="Play"
+                    >
+                      <Play size={20} fill="white" />
+                    </button>
+                    <button
+                      onClick={handlePause}
+                      disabled={!isPlaying || isPaused}
+                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      title="Pause"
+                    >
+                      <Pause size={20} fill="white" />
+                    </button>
+                    <button
+                      onClick={handleReplay}
+                      disabled={!isPlaying && !isPaused}
+                      className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                      title="Replay"
+                    >
+                      <RotateCcw size={20} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700">Speed:</span>
+                    <select
+                      value={playbackSpeed}
+                      onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                      className="px-3 py-2 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      <option value="0.5">0.5x (Slow)</option>
+                      <option value="0.75">0.75x (Moderate)</option>
+                      <option value="1">1x (Normal)</option>
+                      <option value="1.25">1.25x (Fast)</option>
+                      <option value="1.5">1.5x (Very Fast)</option>
+                    </select>
+                  </div>
+
+                  <div className="text-sm font-medium text-gray-700">
+                    {isPlaying ? 'Playing...' : isPaused ? 'Paused' : 'Ready'}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end space-x-4">
               <button
                 onClick={revealAllWords}
@@ -311,6 +500,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                 const isMemorized = selectedIndices.includes(word.index);
                 const isHidden = hiddenWords.has(word.index);
                 const isHighlighted = word.highlightGroup !== undefined;
+                const isCurrentlySpeaking = currentWordIndex === word.index;
 
                 if (word.isParagraphBreak) {
                   return <div key={`para-break-${word.index}`} className="mb-4" />;
@@ -320,12 +510,15 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   return <br key={word.index} />;
                 }
 
+                // Add speaking highlight style
+                const speakingClass = isCurrentlySpeaking ? 'ring-4 ring-blue-400 ring-offset-2 animate-pulse' : '';
+
                 // Non-selected but highlighted words
                 if (isHighlighted && !isMemorized) {
                   return (
                     <span
                       key={idx}
-                      className="inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded"
+                      className={`inline-block px-1 py-1 bg-yellow-100 text-gray-800 rounded ${speakingClass}`}
                       data-source-tsx="MemorizationView Highlighted Word|src/components/MemorizationView/MemorizationView.tsx"
                     >
                       {word.text}
@@ -343,7 +536,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                     <button
                       key={idx}
                       onClick={() => toggleWordVisibility(word.index)}
-                      className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors`}
+                      className={`inline-block px-1 py-1 ${bgColor} text-gray-800 ${hoverBgColor} rounded transition-colors ${speakingClass}`}
                       data-source-tsx="MemorizationView Word Button|src/components/MemorizationView/MemorizationView.tsx"
                     >
                       {displayText}
@@ -353,7 +546,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
                   return (
                     <span
                       key={idx}
-                      className="text-gray-800"
+                      className={`inline-block px-1 py-1 text-gray-800 rounded ${speakingClass}`}
                       data-source-tsx="MemorizationView Word Text|src/components/MemorizationView/MemorizationView.tsx"
                     >
                       {word.text}
@@ -403,11 +596,16 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
             data-source-tsx="MemorizationView Instructions Container|src/components/MemorizationView/MemorizationView.tsx"
           >
             <p data-source-tsx="MemorizationView Instructions Text|src/components/MemorizationView/MemorizationView.tsx">
-              Click masked words to reveal them • Click revealed words to hide them again
+              Click masked words to reveal them • Click revealed words to hide them again • Use audio controls to hear the text read aloud
             </p>
             <p className="text-xs text-gray-500">
               Level 1: Show first & last letters (e.g., l****r) • Level 2: Show first letter only (e.g., l*****) • Level 3: Hide all letters (e.g., ******)
             </p>
+            {speechSupported && (
+              <p className="text-xs text-gray-500">
+                Audio playback uses your selected accent preference • Words are highlighted as they are spoken
+              </p>
+            )}
           </div>
         </div>
       </div>
