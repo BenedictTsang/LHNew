@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban } from 'lucide-react';
+import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban, BookMarked } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
@@ -35,6 +35,21 @@ const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, user
             <Home size={22} />
             <span>Home</span>
           </button>
+
+          {user && (
+            <button
+              onClick={() => onPageChange('saved')}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                currentPage === 'saved'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              data-source-tsx="Navigation Saved Button|src/components/Navigation/Navigation.tsx"
+            >
+              <BookMarked size={22} />
+              <span>Saved Content</span>
+            </button>
+          )}
 
           {(user?.can_access_proofreading || user?.role === 'admin') && (
             <button
