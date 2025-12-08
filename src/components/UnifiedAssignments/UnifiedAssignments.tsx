@@ -147,11 +147,14 @@ export const UnifiedAssignments: React.FC<UnifiedAssignmentsProps> = ({
         selectedWordIndices: assignment.content_data.selected_word_indices,
         words: [],
         title: assignment.title,
+        assignmentId: assignment.assignment_id,
       };
       onLoadMemorization(memorizationState);
     } else if (assignment.assignment_type === 'spelling') {
       const spellingPractice = {
         id: assignment.content_data.practice_id,
+        practiceId: assignment.content_data.practice_id,
+        assignmentId: assignment.assignment_id,
         title: assignment.title,
         words: assignment.content_data.words,
       };

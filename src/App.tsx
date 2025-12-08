@@ -48,14 +48,14 @@ type AppState =
   | { page: 'proofreading'; step: 'assignment'; practice: ProofreadingPractice }
   | { page: 'proofreading'; step: 'assignedPractice'; assignment: AssignedProofreadingPracticeContent }
   | { page: 'spelling'; step: 'input' }
-  | { page: 'spelling'; step: 'preview'; title: string; words: string[] }
-  | { page: 'spelling'; step: 'practice'; title: string; words: string[] }
+  | { page: 'spelling'; step: 'preview'; title: string; words: string[]; practiceId?: string }
+  | { page: 'spelling'; step: 'practice'; title: string; words: string[]; practiceId?: string; assignmentId?: string }
   | { page: 'spelling'; step: 'saved' }
   | { page: 'progress' }
   | { page: 'assignments' }
   | { page: 'assignmentManagement' }
   | { page: 'proofreadingAssignments' }
-  | { page: 'assignedPractice'; memorizationState: MemorizationState };
+  | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
@@ -251,8 +251,12 @@ function AppContent() {
     setAppState({ page: 'practice', memorizationState });
   };
 
-  const handleLoadAssignedContent = (memorizationState: MemorizationState) => {
-    setAppState({ page: 'assignedPractice', memorizationState });
+  const handleLoadAssignedContent = (memorizationState: any) => {
+    setAppState({
+      page: 'assignedPractice',
+      memorizationState,
+      assignmentId: memorizationState.assignmentId
+    });
   };
 
   const handleBackFromPractice = () => {
@@ -353,7 +357,13 @@ function AppContent() {
 
   const handleSpellingPreviewNext = () => {
     if (appState.page === 'spelling' && appState.step === 'preview') {
-      setAppState({ page: 'spelling', step: 'practice', title: appState.title, words: appState.words });
+      setAppState({
+        page: 'spelling',
+        step: 'practice',
+        title: appState.title,
+        words: appState.words,
+        practiceId: appState.practiceId
+      });
     }
   };
 
@@ -519,6 +529,8 @@ function AppContent() {
               <SpellingPractice
                 title={appState.title}
                 words={appState.words}
+                practiceId={appState.practiceId}
+                assignmentId={appState.assignmentId}
                 onBack={handleBackToSpellingPreview}
               />
             );
@@ -534,6 +546,7 @@ function AppContent() {
                       step: 'preview',
                       title: practice.title,
                       words: practice.words,
+                      practiceId: practice.id,
                     });
                   } else {
                     setAppState({
@@ -541,6 +554,8 @@ function AppContent() {
                       step: 'practice',
                       title: practice.title,
                       words: practice.words,
+                      practiceId: practice.id,
+                      assignmentId: practice.assignment_id,
                     });
                   }
                 }}
@@ -550,6 +565,8 @@ function AppContent() {
                     step: 'practice',
                     title: practice.title,
                     words: practice.words,
+                    practiceId: practice.id,
+                    assignmentId: practice.assignment_id,
                   });
                 }}
               />
@@ -568,6 +585,8 @@ function AppContent() {
                 step: 'practice',
                 title: practice.title,
                 words: practice.words,
+                practiceId: practice.practiceId,
+                assignmentId: practice.assignmentId,
               });
             }}
             onLoadProofreading={handleLoadAssignedProofreadingPractice}
@@ -586,6 +605,7 @@ function AppContent() {
             onBack={handleBackFromAssignedPractice}
             onSave={() => {}}
             onViewSaved={() => {}}
+            assignmentId={appState.assignmentId}
           />
         );
     }

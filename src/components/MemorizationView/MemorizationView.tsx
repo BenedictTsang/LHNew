@@ -15,12 +15,13 @@ interface MemorizationViewProps {
   onSave: () => void;
   onViewSaved: () => void;
   isPublicView?: boolean;
+  assignmentId?: string;
 }
 
 type DifficultyLevel = 1 | 2 | 3;
 
 const MemorizationView: React.FC<MemorizationViewProps> = ({
-  words, selectedIndices, originalText, onBack, onSave, onViewSaved, isPublicView = false
+  words, selectedIndices, originalText, onBack, onSave, onViewSaved, isPublicView = false, assignmentId
 }) => {
   const [hiddenWords, setHiddenWords] = useState<Set<number>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
@@ -79,6 +80,7 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
     try {
       await supabase.from('memorization_practice_sessions').insert({
         user_id: user.id,
+        assignment_id: assignmentId || null,
         title,
         original_text: originalText,
         total_words: words.length,
@@ -86,6 +88,17 @@ const MemorizationView: React.FC<MemorizationViewProps> = ({
         session_duration_seconds: sessionDurationSeconds,
         completed_at: new Date().toISOString(),
       });
+
+      if (assignmentId) {
+        const { error: markError } = await supabase.rpc('mark_assignment_complete', {
+          p_assignment_id: assignmentId,
+          p_assignment_type: 'memorization'
+        });
+
+        if (markError) {
+          console.error('Error marking assignment complete:', markError);
+        }
+      }
     } catch (error) {
       console.error('Error saving memorization session:', error);
     }

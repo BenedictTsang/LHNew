@@ -9,6 +9,7 @@ interface Practice {
   words: string[];
   created_at: string;
   assignment_count?: number;
+  assignment_id?: string;
 }
 
 interface User {

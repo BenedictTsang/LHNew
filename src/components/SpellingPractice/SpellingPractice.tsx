@@ -7,9 +7,11 @@ interface SpellingPracticeProps {
   title: string;
   words: string[];
   onBack: () => void;
+  practiceId?: string;
+  assignmentId?: string;
 }
 
-const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack }) => {
+const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBack, practiceId, assignmentId }) => {
   const { accentPreference, user } = useAuth();
   const startTimeRef = useRef<number>(Date.now());
   const [level, setLevel] = useState<1 | 2>(1);
@@ -122,6 +124,8 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
     try {
       await supabase.from('spelling_practice_results').insert({
         user_id: user.id,
+        practice_id: practiceId || null,
+        assignment_id: assignmentId || null,
         title,
         words,
         user_answers: allResults,
@@ -132,6 +136,17 @@ const SpellingPractice: React.FC<SpellingPracticeProps> = ({ title, words, onBac
         time_spent_seconds: timeSpentSeconds,
         completed_at: new Date().toISOString(),
       });
+
+      if (assignmentId) {
+        const { error: markError } = await supabase.rpc('mark_assignment_complete', {
+          p_assignment_id: assignmentId,
+          p_assignment_type: 'spelling'
+        });
+
+        if (markError) {
+          console.error('Error marking assignment complete:', markError);
+        }
+      }
     } catch (error) {
       console.error('Error saving spelling practice results:', error);
     }
