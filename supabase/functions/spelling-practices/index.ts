@@ -372,9 +372,10 @@ Deno.serve(async (req: Request) => {
         const { error: insertError } = await supabase
           .from("practice_assignments")
           .insert(
-            usersToAdd.map((userId) => ({
+            usersToAdd.map((assignedUserId) => ({
               practice_id: practiceId,
-              user_id: userId,
+              user_id: assignedUserId,
+              assigned_by: userId,
             }))
           );
 
