@@ -201,7 +201,9 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update assignments');
+        console.error('Assignment error response:', data);
+        const errorMessage = data.details || data.error || 'Failed to update assignments';
+        throw new Error(errorMessage);
       }
 
       setAssignments(new Set(pendingAssignments));
