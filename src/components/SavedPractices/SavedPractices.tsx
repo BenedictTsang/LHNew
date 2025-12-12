@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useAppContext } from '../../context/AppContext';
+import { useAppContext } from '../../context/AppContext'; // ✅ Data Connection
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
 interface Practice {
@@ -13,12 +13,6 @@ interface Practice {
   assignment_id?: string;
 }
 
-interface User {
-  id: string;
-  username: string;
-  role: string;
-}
-
 interface SavedPracticesProps {
   onCreateNew: () => void;
   onSelectPractice: (practice: Practice) => void;
@@ -27,10 +21,11 @@ interface SavedPracticesProps {
 
 export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice }) => {
   const { user } = useAuth();
-  // ✅ Correctly fetching data from the App Context
+  // ✅ FIX: Get data from the App Context so it actually loads
   const { spellingLists, deleteSpellingList } = useAppContext();
   
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
   const [assigning, setAssigning] = useState(false);
@@ -38,7 +33,9 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
   const handleDelete = async (id: string) => {
     if (deleteConfirm === id) {
+      setDeletingId(id);
       await deleteSpellingList(id);
+      setDeletingId(null);
       setDeleteConfirm(null);
     } else {
       setDeleteConfirm(id);
@@ -58,6 +55,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
   const applyAssignments = async () => {
     setAssigning(true);
+    // Simulation of API call
     setTimeout(() => {
       setAssigning(false);
       closeAssignModal();
@@ -108,11 +106,14 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                           {practice.title}
                         </h3>
                         <p className="text-sm text-gray-500">
-                          {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
+                          Created {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
                         </p>
                       </div>
+                      
+                      {/* DELETE BUTTON (Top Right - Matches SavedContent) */}
                       <button
                         onClick={() => handleDelete(practice.id)}
+                        disabled={deletingId === practice.id}
                         className={`p-2 rounded-lg transition-colors ${
                           deleteConfirm === practice.id
                             ? 'bg-red-100 text-red-600'
@@ -143,13 +144,13 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                     </div>
                   </div>
 
-                  {/* ORIGINAL 2-BUTTON ROW */}
+                  {/* BOTTOM ACTION ROW (Matches SavedContent) */}
                   <div className="p-4 bg-gray-50 border-t border-gray-100 grid grid-cols-2 gap-3">
                     <button
                       onClick={() => openAssignModal(practice)}
                       className="flex items-center justify-center space-x-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
                     >
-                      <Users size={18} />
+                      <UserPlus size={18} />
                       <span>Assign</span>
                     </button>
                     
@@ -166,7 +167,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           )}
 
-          {/* Assign Modal */}
+          {/* Assign Modal (Standard) */}
           {showAssignModal && selectedPractice && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl">
