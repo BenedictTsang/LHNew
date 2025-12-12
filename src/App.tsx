@@ -129,6 +129,17 @@ function AppContent() {
     }
   };
 
+  // FIX: New handler to start practice from preview immediately
+  const handleSpellingStartFromPreview = () => {
+    // Set the selected practice to the current temporary data
+    setSelectedSpellingPractice({
+      id: undefined, // ID is undefined for unsaved practice
+      title: currentSpellingPractice.title,
+      words: currentSpellingPractice.words
+    });
+    setSpellingStep('practice');
+  };
+
   // --- PROOFREADING HANDLERS ---
   const handleProofreadingInput = (sentences: string[]) => {
     setProofreadingSentences(sentences);
@@ -158,7 +169,6 @@ function AppContent() {
 
     // 4. UNIFIED ASSIGNMENTS (MY LEARNING)
     if (currentPage === 'assignments') {
-      // If we selected a memorization assignment to practice
       if (selectedAssignment) {
          return (
           <MemorizationView
@@ -175,16 +185,13 @@ function AppContent() {
           />
         );
       }
-      // Otherwise show the list
       return <UnifiedAssignments 
           onLoadMemorization={(c) => {
-             // Convert assignment format to content format
              const content: any = {
                 originalText: c.original_text,
                 selectedWordIndices: c.selected_word_indices,
-                words: [] // Words will be processed in MemorizationView
+                words: []
              };
-             // We use selectedAssignment state instead of currentContent to track assignment ID
              setSelectedAssignment(c as any);
           }}
           onLoadSpelling={(p) => {
@@ -201,7 +208,6 @@ function AppContent() {
 
     // 5. SAVED MEMORIZATION PRACTICES
     if (currentPage === 'saved') {
-      // If we are viewing a specific saved content (from previous navigation)
       if (currentContent) {
         return (
           <MemorizationView
@@ -221,7 +227,6 @@ function AppContent() {
 
     // 6. NEW MEMORIZATION (CREATE)
     if (currentPage === 'new') {
-      // If we are viewing a just-loaded content
       if (memorizationStep === 'view') {
         return (
           <MemorizationView
@@ -250,7 +255,6 @@ function AppContent() {
           />
         );
       }
-      // Default: Input
       return <TextInput onNext={handleTextInput} />;
     }
 
@@ -302,7 +306,7 @@ function AppContent() {
       }
     }
 
-    // 8. PROOFREADING ASSIGNMENTS (Specific view)
+    // 8. PROOFREADING ASSIGNMENTS
     if (currentPage === 'proofreadingAssignments') {
       if (assignedProofreadingPractice) {
         return (
@@ -317,7 +321,7 @@ function AppContent() {
       return <AssignedProofreadingPractices onLoadContent={setAssignedProofreadingPractice} />;
     }
 
-    // 9. SPELLING FLOW
+    // 9. SPELLING FLOW (Fixed)
     if (currentPage === 'spelling') {
       if (spellingStep === 'list') {
         return (
@@ -346,7 +350,8 @@ function AppContent() {
           <SpellingPreview
             title={currentSpellingPractice.title}
             words={currentSpellingPractice.words}
-            onNext={handleSpellingSave}
+            onNext={handleSpellingStartFromPreview} // <--- CORRECTED HERE
+            onSave={handleSpellingSave} // <--- Added explicitly
             onBack={() => setSpellingStep('input')}
           />
         );
