@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, CheckCircle, XCircle, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useAppContext } from '../../context/AppContext';
+// 👇 This is the critical fix: Standard import instead of 'require'
+import { useAppContext } from '../../context/AppContext'; 
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
 interface Practice {
@@ -13,23 +14,17 @@ interface Practice {
   assignment_id?: string;
 }
 
-interface User {
-  id: string;
-  username: string;
-  role: string;
-}
-
 interface SavedPracticesProps {
   onCreateNew: () => void;
   onSelectPractice: (practice: Practice) => void;
   onPractice?: (practice: Practice) => void;
 }
 
-export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice, onPractice }) => {
-  const { user, isAdmin } = useAuth();
+export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice }) => {
+  const { user } = useAuth();
+  // 👇 Properly getting the list from the App's memory
   const { spellingLists, deleteSpellingList } = useAppContext();
   
-  const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
@@ -85,7 +80,8 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           </div>
 
-          {spellingLists.length === 0 ? (
+          {/* CHECK IF LIST IS EMPTY */}
+          {!spellingLists || spellingLists.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-200">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Plus size={32} className="text-gray-400" />
@@ -101,7 +97,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {spellingLists.map((practice: Practice) => (
+              {spellingLists.map((practice: any) => (
                 <div 
                   key={practice.id}
                   className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 overflow-hidden flex flex-col"
@@ -113,14 +109,14 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                           {practice.title}
                         </h3>
                         <p className="text-sm text-gray-500">
-                          {new Date(practice.created_at).toLocaleDateString()}
+                          {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
 
                     <div className="mb-4">
                       <div className="flex flex-wrap gap-2">
-                        {practice.words.slice(0, 5).map((word, idx) => (
+                        {(practice.words || []).slice(0, 5).map((word: string, idx: number) => (
                           <span 
                             key={idx}
                             className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-md"
@@ -128,9 +124,9 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                             {word}
                           </span>
                         ))}
-                        {practice.words.length > 5 && (
+                        {(practice.words || []).length > 5 && (
                           <span className="px-2 py-1 text-gray-400 text-sm">
-                            +{practice.words.length - 5} more
+                            +{(practice.words || []).length - 5} more
                           </span>
                         )}
                       </div>
