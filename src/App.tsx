@@ -24,7 +24,6 @@ import { Login } from './components/Auth/Login';
 import AdminPanel from './components/AdminPanel/AdminPanel';
 import { ContentDatabase } from './components/ContentDatabase/ContentDatabase';
 import SourceInspector from './components/SourceInspector/SourceInspector';
-// New imports from Com 4
 import StudentProgress from './components/StudentProgress/StudentProgress';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import UserAnalytics from './components/UserAnalytics/UserAnalytics';
@@ -85,11 +84,13 @@ function AppContent() {
   const handlePageChange = (page: typeof currentPage) => {
     setCurrentPage(page);
     // Reset steps when changing main sections
-    if (page === 'new') setMemorizationStep('input');
+    if (page === 'new') {
+      setMemorizationStep('input');
+      setCurrentContent(null);
+    }
     if (page === 'spelling') setSpellingStep('list');
     if (page === 'proofreading') setProofreadingStep('list');
     
-    setCurrentContent(null);
     setSelectedAssignment(null);
     setAssignedProofreadingPractice(null);
   };
@@ -155,10 +156,11 @@ function AppContent() {
     // 3. PROGRESS & ANALYTICS
     if (currentPage === 'progress') return <StudentProgress />;
 
-    // 4. MEMORIZATION FLOW
-    if (currentPage === 'new' || currentPage === 'saved' || currentPage === 'assignments') {
+    // 4. UNIFIED ASSIGNMENTS (MY LEARNING)
+    if (currentPage === 'assignments') {
+      // If we selected a memorization assignment to practice
       if (selectedAssignment) {
-        return (
+         return (
           <MemorizationView
             words={[]} 
             selectedIndices={selectedAssignment.selected_word_indices}
@@ -173,17 +175,53 @@ function AppContent() {
           />
         );
       }
-      
-      if (memorizationStep === 'input') return <TextInput onNext={handleTextInput} />;
-      if (memorizationStep === 'selection') {
+      // Otherwise show the list
+      return <UnifiedAssignments 
+          onLoadMemorization={(c) => {
+             // Convert assignment format to content format
+             const content: any = {
+                originalText: c.original_text,
+                selectedWordIndices: c.selected_word_indices,
+                words: [] // Words will be processed in MemorizationView
+             };
+             // We use selectedAssignment state instead of currentContent to track assignment ID
+             setSelectedAssignment(c as any);
+          }}
+          onLoadSpelling={(p) => {
+            setSelectedSpellingPractice(p);
+            setCurrentPage('spelling');
+            setSpellingStep('practice');
+          }}
+          onLoadProofreading={(p) => {
+             setAssignedProofreadingPractice(p);
+             setCurrentPage('proofreadingAssignments');
+          }}
+        />;
+    }
+
+    // 5. SAVED MEMORIZATION PRACTICES
+    if (currentPage === 'saved') {
+      // If we are viewing a specific saved content (from previous navigation)
+      if (currentContent) {
         return (
-          <WordSelection
-            text={textInput}
-            onNext={handleWordSelection}
-            onBack={() => setMemorizationStep('input')}
+          <MemorizationView
+            words={words}
+            selectedIndices={selectedIndices}
+            originalText={textInput}
+            onBack={() => {
+              setCurrentContent(null);
+            }}
+            onSave={() => {}}
+            onViewSaved={() => setCurrentPage('saved')}
           />
         );
       }
+      return <SavedContent onLoadContent={handleLoadContent} onCreateNew={() => setCurrentPage('new')} />;
+    }
+
+    // 6. NEW MEMORIZATION (CREATE)
+    if (currentPage === 'new') {
+      // If we are viewing a just-loaded content
       if (memorizationStep === 'view') {
         return (
           <MemorizationView
@@ -203,27 +241,20 @@ function AppContent() {
           />
         );
       }
-      if (currentPage === 'saved') {
-        return <SavedContent onLoadContent={handleLoadContent} onCreateNew={() => setCurrentPage('new')} />;
+      if (memorizationStep === 'selection') {
+        return (
+          <WordSelection
+            text={textInput}
+            onNext={handleWordSelection}
+            onBack={() => setMemorizationStep('input')}
+          />
+        );
       }
-      if (currentPage === 'assignments') {
-        // Use the new UnifiedAssignments component if available, or the specific one
-        return <UnifiedAssignments 
-          onLoadMemorization={(c) => handleLoadContent(c as any)}
-          onLoadSpelling={(p) => {
-            setSelectedSpellingPractice(p);
-            setCurrentPage('spelling');
-            setSpellingStep('practice');
-          }}
-          onLoadProofreading={(p) => {
-             setAssignedProofreadingPractice(p);
-             setCurrentPage('proofreadingAssignments');
-          }}
-        />;
-      }
+      // Default: Input
+      return <TextInput onNext={handleTextInput} />;
     }
 
-    // 5. PROOFREADING FLOW
+    // 7. PROOFREADING FLOW
     if (currentPage === 'proofreading') {
       if (proofreadingStep === 'list') {
         return (
@@ -271,7 +302,7 @@ function AppContent() {
       }
     }
 
-    // 6. PROOFREADING ASSIGNMENTS (Specific view)
+    // 8. PROOFREADING ASSIGNMENTS (Specific view)
     if (currentPage === 'proofreadingAssignments') {
       if (assignedProofreadingPractice) {
         return (
@@ -286,7 +317,7 @@ function AppContent() {
       return <AssignedProofreadingPractices onLoadContent={setAssignedProofreadingPractice} />;
     }
 
-    // 7. SPELLING FLOW
+    // 9. SPELLING FLOW
     if (currentPage === 'spelling') {
       if (spellingStep === 'list') {
         return (
@@ -315,7 +346,7 @@ function AppContent() {
           <SpellingPreview
             title={currentSpellingPractice.title}
             words={currentSpellingPractice.words}
-            onNext={handleSpellingSave} // Corrected: Preview next goes to save/start
+            onNext={handleSpellingSave}
             onBack={() => setSpellingStep('input')}
           />
         );
