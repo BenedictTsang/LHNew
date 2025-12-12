@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle, Settings } from 'lucide-react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-// 👇 This is the critical fix: Standard import instead of 'require'
-import { useAppContext } from '../../context/AppContext'; 
+import { useAppContext } from '../../context/AppContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
 interface Practice {
@@ -14,6 +13,12 @@ interface Practice {
   assignment_id?: string;
 }
 
+interface User {
+  id: string;
+  username: string;
+  role: string;
+}
+
 interface SavedPracticesProps {
   onCreateNew: () => void;
   onSelectPractice: (practice: Practice) => void;
@@ -22,7 +27,7 @@ interface SavedPracticesProps {
 
 export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice }) => {
   const { user } = useAuth();
-  // 👇 Properly getting the list from the App's memory
+  // ✅ Correctly fetching data from the App Context
   const { spellingLists, deleteSpellingList } = useAppContext();
   
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -53,15 +58,10 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
   const applyAssignments = async () => {
     setAssigning(true);
-    // Simulation of API call
     setTimeout(() => {
       setAssigning(false);
       closeAssignModal();
     }, 1000);
-  };
-
-  const handleManage = (practice: Practice) => {
-    alert(`Manage/Edit feature for "${practice.title}" coming soon!`);
   };
 
   return (
@@ -80,7 +80,6 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           </div>
 
-          {/* CHECK IF LIST IS EMPTY */}
           {!spellingLists || spellingLists.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-200">
               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -104,7 +103,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                 >
                   <div className="p-6 flex-grow">
                     <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 mr-4">
                         <h3 className="text-xl font-bold text-gray-800 mb-1 truncate" title={practice.title}>
                           {practice.title}
                         </h3>
@@ -112,6 +111,17 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                           {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
                         </p>
                       </div>
+                      <button
+                        onClick={() => handleDelete(practice.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          deleteConfirm === practice.id
+                            ? 'bg-red-100 text-red-600'
+                            : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                        }`}
+                        title="Delete"
+                      >
+                        <Trash2 size={20} />
+                      </button>
                     </div>
 
                     <div className="mb-4">
@@ -133,53 +143,22 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                     </div>
                   </div>
 
-                  {/* ACTION BUTTONS ROW */}
-                  <div className="p-3 bg-gray-50 border-t border-gray-100 grid grid-cols-4 gap-2">
-                    
-                    {/* 1. MANAGE */}
-                    <button
-                      onClick={() => handleManage(practice)}
-                      className="flex flex-col items-center justify-center py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Manage"
-                    >
-                      <Settings size={20} />
-                      <span className="text-xs font-medium mt-1">Manage</span>
-                    </button>
-
-                    {/* 2. ASSIGN */}
+                  {/* ORIGINAL 2-BUTTON ROW */}
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 grid grid-cols-2 gap-3">
                     <button
                       onClick={() => openAssignModal(practice)}
-                      className="flex flex-col items-center justify-center py-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                      title="Assign"
+                      className="flex items-center justify-center space-x-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
                     >
-                      <UserPlus size={20} />
-                      <span className="text-xs font-medium mt-1">Assign</span>
+                      <Users size={18} />
+                      <span>Assign</span>
                     </button>
                     
-                    {/* 3. PRACTICE */}
                     <button
                       onClick={() => onSelectPractice(practice)}
-                      className="flex flex-col items-center justify-center py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Practice"
+                      className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-sm"
                     >
-                      <PlayCircle size={20} />
-                      <span className="text-xs font-medium mt-1">Practice</span>
-                    </button>
-
-                    {/* 4. DELETE */}
-                    <button
-                      onClick={() => handleDelete(practice.id)}
-                      className={`flex flex-col items-center justify-center py-2 rounded-lg transition-colors ${
-                        deleteConfirm === practice.id
-                          ? 'bg-red-100 text-red-600'
-                          : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
-                      }`}
-                      title={deleteConfirm === practice.id ? "Confirm Delete" : "Delete"}
-                    >
-                      <Trash2 size={20} />
-                      <span className="text-xs font-medium mt-1">
-                        {deleteConfirm === practice.id ? 'Confirm' : 'Delete'}
-                      </span>
+                      <PlayCircle size={18} />
+                      <span>Practice</span>
                     </button>
                   </div>
                 </div>
