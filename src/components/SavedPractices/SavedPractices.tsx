@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Trash2, Users, Plus, PlayCircle, UserPlus, XCircle, CheckCircle, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useAppContext } from '../../context/AppContext'; // ✅ Data Connection
+import { useAppContext } from '../../context/AppContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
+import { supabase } from '../../lib/supabase'; // Import Supabase to fetch students
 
 interface Practice {
   id: string;
@@ -13,6 +14,13 @@ interface Practice {
   assignment_id?: string;
 }
 
+interface User {
+  id: string;
+  username: string;
+  role: string;
+  display_name?: string;
+}
+
 interface SavedPracticesProps {
   onCreateNew: () => void;
   onSelectPractice: (practice: Practice) => void;
@@ -21,21 +29,48 @@ interface SavedPracticesProps {
 
 export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice }) => {
   const { user } = useAuth();
-  // ✅ FIX: Get data from the App Context so it actually loads
   const { spellingLists, deleteSpellingList } = useAppContext();
   
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
-  const [assigning, setAssigning] = useState(false);
+  
+  // Student List State
+  const [students, setStudents] = useState<User[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [assignSearch, setAssignSearch] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  // Load students when modal opens
+  useEffect(() => {
+    if (showAssignModal) {
+      fetchStudents();
+    }
+  }, [showAssignModal]);
+
+  const fetchStudents = async () => {
+    setIsLoadingStudents(true);
+    try {
+      // Fetch all users with role 'user' (students)
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, role, display_name')
+        .eq('role', 'user')
+        .order('username');
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (deleteConfirm === id) {
-      setDeletingId(id);
       await deleteSpellingList(id);
-      setDeletingId(null);
       setDeleteConfirm(null);
     } else {
       setDeleteConfirm(id);
@@ -45,22 +80,61 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
   const openAssignModal = (practice: Practice) => {
     setSelectedPractice(practice);
+    setSelectedStudentIds(new Set()); // Reset selections
     setShowAssignModal(true);
   };
 
   const closeAssignModal = () => {
     setShowAssignModal(false);
     setSelectedPractice(null);
+    setSelectedStudentIds(new Set());
+  };
+
+  const toggleStudentSelection = (studentId: string) => {
+    const newSelection = new Set(selectedStudentIds);
+    if (newSelection.has(studentId)) {
+      newSelection.delete(studentId);
+    } else {
+      newSelection.add(studentId);
+    }
+    setSelectedStudentIds(newSelection);
   };
 
   const applyAssignments = async () => {
+    if (!selectedPractice || !user) return;
+    
     setAssigning(true);
-    // Simulation of API call
-    setTimeout(() => {
-      setAssigning(false);
+    try {
+      // Create assignment records for selected students
+      const assignmentsToInsert = Array.from(selectedStudentIds).map(studentId => ({
+        practice_id: selectedPractice.id,
+        user_id: studentId,
+        assigned_by: user.id,
+        assigned_at: new Date().toISOString()
+      }));
+
+      if (assignmentsToInsert.length > 0) {
+        const { error } = await supabase
+          .from('practice_assignments')
+          .insert(assignmentsToInsert);
+
+        if (error) throw error;
+        alert(`Successfully assigned to ${assignmentsToInsert.length} students!`);
+      }
+      
       closeAssignModal();
-    }, 1000);
+    } catch (error) {
+      console.error('Error assigning practice:', error);
+      alert('Failed to save assignments. Please try again.');
+    } finally {
+      setAssigning(false);
+    }
   };
+
+  const filteredStudents = students.filter(student => 
+    student.username.toLowerCase().includes(assignSearch.toLowerCase()) ||
+    (student.display_name && student.display_name.toLowerCase().includes(assignSearch.toLowerCase()))
+  );
 
   return (
     <>
@@ -106,14 +180,13 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                           {practice.title}
                         </h3>
                         <p className="text-sm text-gray-500">
-                          Created {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
+                          {new Date(practice.createdAt || practice.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       
-                      {/* DELETE BUTTON (Top Right - Matches SavedContent) */}
+                      {/* DELETE BUTTON (Top Right) */}
                       <button
                         onClick={() => handleDelete(practice.id)}
-                        disabled={deletingId === practice.id}
                         className={`p-2 rounded-lg transition-colors ${
                           deleteConfirm === practice.id
                             ? 'bg-red-100 text-red-600'
@@ -144,7 +217,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                     </div>
                   </div>
 
-                  {/* BOTTOM ACTION ROW (Matches SavedContent) */}
+                  {/* BOTTOM ACTION ROW */}
                   <div className="p-4 bg-gray-50 border-t border-gray-100 grid grid-cols-2 gap-3">
                     <button
                       onClick={() => openAssignModal(practice)}
@@ -167,7 +240,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           )}
 
-          {/* Assign Modal (Standard) */}
+          {/* Assign Modal (Fixed with Student List) */}
           {showAssignModal && selectedPractice && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl">
@@ -185,7 +258,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
 
                 <div className="p-4 border-b border-gray-200 bg-gray-50">
                   <div className="relative">
-                    <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     <input
                       type="text"
                       placeholder="Search students..."
@@ -196,27 +269,70 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2">
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Student list feature coming soon...</p>
-                    <p className="text-xs mt-2">(Use Admin Panel for user management)</p>
-                  </div>
+                {/* STUDENT LIST */}
+                <div className="flex-1 overflow-y-auto p-2 min-h-[200px]">
+                  {isLoadingStudents ? (
+                    <div className="flex justify-center items-center h-full py-8">
+                      <div className="text-gray-500">Loading students...</div>
+                    </div>
+                  ) : filteredStudents.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No students found.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredStudents.map(student => (
+                        <div 
+                          key={student.id}
+                          onClick={() => toggleStudentSelection(student.id)}
+                          className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                            selectedStudentIds.has(student.id) 
+                              ? 'bg-blue-50 border border-blue-200' 
+                              : 'hover:bg-gray-50 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                              selectedStudentIds.has(student.id)
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'border-gray-300 bg-white'
+                            }`}>
+                              {selectedStudentIds.has(student.id) && <CheckCircle size={14} />}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {student.display_name || student.username}
+                              </p>
+                              {student.display_name && (
+                                <p className="text-xs text-gray-500">@{student.username}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div className="p-6 border-t border-gray-200 flex justify-end space-x-3 bg-gray-50 rounded-b-xl">
-                  <button
-                    onClick={closeAssignModal}
-                    className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={applyAssignments}
-                    disabled={assigning}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                  >
-                    {assigning ? 'Saving...' : 'Save Assignments'}
-                  </button>
+                <div className="p-6 border-t border-gray-200 flex justify-between items-center bg-gray-50 rounded-b-xl">
+                  <div className="text-sm text-gray-600">
+                    {selectedStudentIds.size} selected
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={closeAssignModal}
+                      className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={applyAssignments}
+                      disabled={assigning || selectedStudentIds.size === 0}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {assigning ? 'Saving...' : 'Save Assignments'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
