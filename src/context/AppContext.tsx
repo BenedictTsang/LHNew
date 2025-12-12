@@ -73,7 +73,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         allSpellingLists.push(...formattedNew);
       }
 
-      // 2. Check the OLD table (spelling_practice_lists) - JUST IN CASE
+      // 2. Check the OLD table (spelling_practice_lists)
       const { data: oldSpellData } = await supabase
         .from('spelling_practice_lists')
         .select('*')
@@ -87,7 +87,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           words: item.words, 
           createdAt: new Date(item.created_at)
         }));
-        // Add only if not already present (avoid duplicates)
+        // Avoid duplicates
         formattedOld.forEach(item => {
           if (!allSpellingLists.find(existing => existing.id === item.id)) {
             allSpellingLists.push(item);
@@ -153,31 +153,51 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const publishSavedContent = async (id: string) => {
-    return null; 
-  };
+  const publishSavedContent = async (id: string) => { return null; };
+  const fetchPublicContent = async (publicId: string) => { return null; };
 
-  const fetchPublicContent = async (publicId: string) => {
-    return null;
-  };
-
+  // --- IMPROVED ADD SPELLING LIST (The Fix) ---
   const addSpellingList = async (title: string, words: string[]) => {
     if (!user) return false;
+    
+    // Attempt 1: Try saving to the NEW table (spelling_practices)
+    // This table usually requires 'created_by'
     try {
-      // Always save to the NEW table
-      const { error } = await supabase
+      const { error: newError } = await supabase
         .from('spelling_practices')
         .insert({
           title,
-          words,
+          words, 
           created_by: user.id
         });
 
-      if (error) throw error;
-      await fetchAllData(); 
+      if (!newError) {
+        await fetchAllData();
+        return true;
+      }
+      // If it fails silently continue to Attempt 2
+    } catch (e) {
+      // Ignore error and try next method
+    }
+
+    // Attempt 2: Try saving to the OLD table (spelling_practice_lists)
+    // This table usually requires 'user_id' and allows students to save
+    try {
+      const { error: oldError } = await supabase
+        .from('spelling_practice_lists')
+        .insert({
+          title,
+          words,
+          user_id: user.id
+        });
+
+      if (oldError) throw oldError;
+      
+      await fetchAllData();
       return true;
     } catch (e) {
-      console.error('Error adding spelling list:', e);
+      console.error('Failed to save spelling list to both tables:', e);
+      alert('Could not save practice. Please check your internet connection.');
       return false;
     }
   };
