@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Trash2, Users, Plus, PlayCircle, Edit, UserPlus, CheckCircle, XCircle, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useAppContext } from '../../context/AppContext';
 import SpellingTopNav from '../SpellingTopNav/SpellingTopNav';
 
 interface Practice {
@@ -26,22 +27,14 @@ interface SavedPracticesProps {
 
 export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onSelectPractice, onPractice }) => {
   const { user, isAdmin } = useAuth();
-  const [practices, setPractices] = useState<Practice[]>([]);
+  const { spellingLists, deleteSpellingList } = useAppContext();
+  
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPractice, setSelectedPractice] = useState<Practice | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [assignments, setAssignments] = useState<Set<string>>(new Set());
-  const [pendingAssignments, setPendingAssignments] = useState<Set<string>>(new Set());
   const [assigning, setAssigning] = useState(false);
   const [assignSearch, setAssignSearch] = useState('');
-
-  // Access context functions safely
-  const context = require('../../context/AppContext').useAppContext();
-  const spellingLists = context.spellingLists || [];
-  const deleteSpellingList = context.deleteSpellingList;
 
   const handleDelete = async (id: string) => {
     if (deleteConfirm === id) {
@@ -61,11 +54,11 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
   const closeAssignModal = () => {
     setShowAssignModal(false);
     setSelectedPractice(null);
-    setPendingAssignments(new Set());
   };
 
   const applyAssignments = async () => {
     setAssigning(true);
+    // Simulation of API call
     setTimeout(() => {
       setAssigning(false);
       closeAssignModal();
@@ -167,7 +160,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
                       <span className="text-xs font-medium mt-1">Assign</span>
                     </button>
                     
-                    {/* 3. PRACTICE (New Button) */}
+                    {/* 3. PRACTICE */}
                     <button
                       onClick={() => onSelectPractice(practice)}
                       className="flex flex-col items-center justify-center py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
@@ -198,7 +191,7 @@ export const SavedPractices: React.FC<SavedPracticesProps> = ({ onCreateNew, onS
             </div>
           )}
 
-          {/* Assign Modal (Unchanged) */}
+          {/* Assign Modal */}
           {showAssignModal && selectedPractice && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl">
