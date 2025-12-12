@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { AppContextType, SavedContent, MemorizationState, SpellingPracticeList, ProofreadingPractice, ProofreadingAnswer } from '../types';
 import { supabase } from '../lib/supabase';
-import { processText } from '../utils/textProcessor';
 import { useAuth } from './AuthContext';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -54,24 +53,49 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setCurrentSaveCount(formattedMem.length);
       }
 
-      // B. Fetch Spelling Lists (THIS WAS LIKELY MISSING)
-      const { data: spellData, error: spellError } = await supabase
+      // B. Fetch Spelling Lists (ROBUST MODE: CHECKS BOTH TABLES)
+      const allSpellingLists: SpellingPracticeList[] = [];
+
+      // 1. Check the NEW table (spelling_practices)
+      const { data: newSpellData } = await supabase
         .from('spelling_practices')
         .select('*')
-        .eq('created_by', user.id) // Assuming 'created_by' is the column name based on your migrations
+        .eq('created_by', user.id)
         .order('created_at', { ascending: false });
 
-      if (!spellError && spellData) {
-        const formattedSpell = spellData.map(item => ({
+      if (newSpellData) {
+        const formattedNew = newSpellData.map(item => ({
           id: item.id,
           title: item.title,
           words: item.words,
           createdAt: new Date(item.created_at)
         }));
-        setSpellingLists(formattedSpell);
-      } else if (spellError) {
-        console.error("Error fetching spelling:", spellError);
+        allSpellingLists.push(...formattedNew);
       }
+
+      // 2. Check the OLD table (spelling_practice_lists) just in case
+      const { data: oldSpellData } = await supabase
+        .from('spelling_practice_lists')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (oldSpellData) {
+        const formattedOld = oldSpellData.map(item => ({
+          id: item.id,
+          title: item.title,
+          words: item.words, // Note: old table uses JSONB for words
+          createdAt: new Date(item.created_at)
+        }));
+        // Only add if not duplicate ID
+        formattedOld.forEach(item => {
+          if (!allSpellingLists.find(existing => existing.id === item.id)) {
+            allSpellingLists.push(item);
+          }
+        });
+      }
+
+      setSpellingLists(allSpellingLists);
 
       // C. Fetch Proofreading Practices
       const { data: proofData, error: proofError } = await supabase
@@ -101,19 +125,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const addSavedContent = async (content: Omit<SavedContent, 'id' | 'createdAt'>) => {
     if (!user) return false;
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('saved_contents')
         .insert({
           user_id: user.id,
           title: content.title,
           original_text: content.originalText,
           selected_word_indices: content.selectedWordIndices
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
-      await fetchAllData(); // Refresh list
+      await fetchAllData(); 
       return true;
     } catch (e) {
       console.error('Error adding content:', e);
@@ -132,18 +154,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const publishSavedContent = async (id: string) => {
-    // Placeholder implementation
     return null; 
   };
 
   const fetchPublicContent = async (publicId: string) => {
-    // Placeholder implementation
     return null;
   };
 
   const addSpellingList = async (title: string, words: string[]) => {
     if (!user) return false;
     try {
+      // Always save to the NEW table
       const { error } = await supabase
         .from('spelling_practices')
         .insert({
@@ -153,7 +174,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         });
 
       if (error) throw error;
-      await fetchAllData(); // Refresh list
+      await fetchAllData(); 
       return true;
     } catch (e) {
       console.error('Error adding spelling list:', e);
@@ -163,7 +184,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const deleteSpellingList = async (id: string) => {
     try {
+      // Try deleting from both tables to be safe
       await supabase.from('spelling_practices').delete().eq('id', id);
+      await supabase.from('spelling_practice_lists').delete().eq('id', id);
+      
       setSpellingLists(prev => prev.filter(item => item.id !== id));
     } catch (e) {
       console.error('Error deleting spelling list:', e);
