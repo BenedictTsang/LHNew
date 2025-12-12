@@ -1,395 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import { AppProvider } from './context/AppContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { useAppContext } from './context/AppContext';
-import Navigation from './components/Navigation/Navigation';
-import TextInput from './components/TextInput/TextInput';
-import WordSelection from './components/WordSelection/WordSelection';
-import MemorizationView from './components/MemorizationView/MemorizationView';
-import SavedContent from './components/SavedContent/SavedContent';
-import ProofreadingInput from './components/ProofreadingInput/ProofreadingInput';
-import ProofreadingAnswerSetting from './components/ProofreadingAnswerSetting/ProofreadingAnswerSetting';
-import ProofreadingPreview from './components/ProofreadingPreview/ProofreadingPreview';
-import ProofreadingPracticeComponent from './components/ProofreadingPractice/ProofreadingPractice';
-import SpellingInput from './components/SpellingInput/SpellingInput';
-import SpellingPreview from './components/SpellingPreview/SpellingPreview';
-import SpellingPractice from './components/SpellingPractice/SpellingPractice';
-import SavedPractices from './components/SavedPractices/SavedPractices';
-import SavedProofreadingPractices from './components/SavedProofreadingPractices/SavedProofreadingPractices';
-import ProofreadingAssignment from './components/ProofreadingAssignment/ProofreadingAssignment';
-import AssignedProofreadingPractices from './components/AssignedProofreadingPractices/AssignedProofreadingPractices';
-import AssignedMemorizations from './components/AssignedMemorizations/AssignedMemorizations';
-import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
-import { Login } from './components/Auth/Login';
-import AdminPanel from './components/AdminPanel/AdminPanel';
-import { ContentDatabase } from './components/ContentDatabase/ContentDatabase';
-import SourceInspector from './components/SourceInspector/SourceInspector';
-import StudentProgress from './components/StudentProgress/StudentProgress';
-import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
-import UserAnalytics from './components/UserAnalytics/UserAnalytics';
+import React from 'react';
+import { 
+  Home, 
+  BookMarked, 
+  PenTool, 
+  CheckSquare, 
+  ClipboardList, 
+  TrendingUp, 
+  Shield, 
+  Database, 
+  LogOut, 
+  LogIn, 
+  BookOpen 
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-import { Word, MemorizationState, ProofreadingPractice, ProofreadingAnswer, AssignedProofreadingPracticeContent, AssignedMemorizationContent } from './types';
-
-// Wrapper component to handle the main app logic
-function AppContent() {
-  const { user, loading: authLoading } = useAuth();
-  const { 
-    currentContent, 
-    setCurrentContent, 
-    spellingLists, 
-    addSpellingList, 
-    proofreadingPractices,
-    deleteProofreadingPractice 
-  } = useAppContext();
-
-  // State
-  const [currentPage, setCurrentPage] = useState<'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments'>('new');
-  
-  // Memorization State
-  const [memorizationStep, setMemorizationStep] = useState<'input' | 'selection' | 'view'>('input');
-  const [textInput, setTextInput] = useState('');
-  const [words, setWords] = useState<Word[]>([]);
-  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  
-  // Spelling State
-  const [spellingStep, setSpellingStep] = useState<'input' | 'preview' | 'practice' | 'list'>('list');
-  const [currentSpellingPractice, setCurrentSpellingPractice] = useState<{title: string, words: string[]}>({ title: '', words: [] });
-  const [selectedSpellingPractice, setSelectedSpellingPractice] = useState<any>(null);
-
-  // Proofreading State
-  const [proofreadingStep, setProofreadingStep] = useState<'input' | 'answers' | 'preview' | 'practice' | 'list'>('list');
-  const [proofreadingSentences, setProofreadingSentences] = useState<string[]>([]);
-  const [proofreadingAnswers, setProofreadingAnswers] = useState<ProofreadingAnswer[]>([]);
-  const [selectedProofreadingPractice, setSelectedProofreadingPractice] = useState<ProofreadingPractice | null>(null);
-  const [assignedProofreadingPractice, setAssignedProofreadingPractice] = useState<AssignedProofreadingPracticeContent | null>(null);
-  
-  // Assignment State
-  const [selectedAssignment, setSelectedAssignment] = useState<AssignedMemorizationContent | null>(null);
-
-  // Handle loading state
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-xl font-semibold text-gray-600">Loading Application...</div>
-      </div>
-    );
-  }
-
-  // Handle unauthenticated state
-  if (!user) {
-    return <Login />;
-  }
-
-  // Navigation Handlers
-  const handlePageChange = (page: typeof currentPage) => {
-    setCurrentPage(page);
-    // Reset steps when changing main sections
-    if (page === 'new') {
-      setMemorizationStep('input');
-      setCurrentContent(null);
-    }
-    if (page === 'spelling') setSpellingStep('list');
-    if (page === 'proofreading') setProofreadingStep('list');
-    
-    setSelectedAssignment(null);
-    setAssignedProofreadingPractice(null);
-  };
-
-  // --- MEMORIZATION HANDLERS ---
-  const handleTextInput = (text: string) => {
-    setTextInput(text);
-    setMemorizationStep('selection');
-  };
-
-  const handleWordSelection = (selectedWords: Word[], indices: number[]) => {
-    setWords(selectedWords);
-    setSelectedIndices(indices);
-    setMemorizationStep('view');
-  };
-
-  const handleLoadContent = (content: MemorizationState) => {
-    setTextInput(content.originalText);
-    setWords(content.words);
-    setSelectedIndices(content.selectedWordIndices);
-    setCurrentContent(content);
-    setCurrentPage('new');
-    setMemorizationStep('view');
-  };
-
-  // --- SPELLING HANDLERS ---
-  const handleSpellingInput = (title: string, words: string[]) => {
-    setCurrentSpellingPractice({ title, words });
-    setSpellingStep('preview');
-  };
-
-  const handleSpellingSave = async () => {
-    const success = await addSpellingList(currentSpellingPractice.title, currentSpellingPractice.words);
-    if (success) {
-      setSpellingStep('list');
-    }
-  };
-
-  // --- PROOFREADING HANDLERS ---
-  const handleProofreadingInput = (sentences: string[]) => {
-    setProofreadingSentences(sentences);
-    setProofreadingStep('answers');
-  };
-
-  const handleProofreadingAnswers = (answers: ProofreadingAnswer[]) => {
-    setProofreadingAnswers(answers);
-    setProofreadingStep('preview');
-  };
-
-  const handleProofreadingSave = async () => {
-    setProofreadingStep('list');
-  };
-
-  // Render logic based on state
-  const renderCurrentView = () => {
-    // 1. ADMIN & DATABASE
-    if (currentPage === 'admin') return <AdminPanel />;
-    if (currentPage === 'database') return <ContentDatabase />;
-    
-    // 2. ASSIGNMENT MANAGEMENT (Admin View)
-    if (currentPage === 'assignmentManagement') return <AssignmentManagement />;
-
-    // 3. PROGRESS & ANALYTICS
-    if (currentPage === 'progress') return <StudentProgress />;
-
-    // 4. UNIFIED ASSIGNMENTS (MY LEARNING)
-    if (currentPage === 'assignments') {
-      // If we selected a memorization assignment to practice
-      if (selectedAssignment) {
-         return (
-          <MemorizationView
-            words={[]} 
-            selectedIndices={selectedAssignment.selected_word_indices}
-            originalText={selectedAssignment.original_text}
-            onBack={() => {
-              setSelectedAssignment(null);
-              setCurrentPage('assignments');
-            }}
-            onSave={() => {}}
-            onViewSaved={() => setCurrentPage('saved')}
-            assignmentId={selectedAssignment.id}
-          />
-        );
-      }
-      // Otherwise show the list
-      return <UnifiedAssignments 
-          onLoadMemorization={(c) => {
-             // Convert assignment format to content format
-             const content: any = {
-                originalText: c.original_text,
-                selectedWordIndices: c.selected_word_indices,
-                words: [] // Words will be processed in MemorizationView
-             };
-             // We use selectedAssignment state instead of currentContent to track assignment ID
-             setSelectedAssignment(c as any);
-          }}
-          onLoadSpelling={(p) => {
-            setSelectedSpellingPractice(p);
-            setCurrentPage('spelling');
-            setSpellingStep('practice');
-          }}
-          onLoadProofreading={(p) => {
-             setAssignedProofreadingPractice(p);
-             setCurrentPage('proofreadingAssignments');
-          }}
-        />;
-    }
-
-    // 5. SAVED MEMORIZATION PRACTICES
-    if (currentPage === 'saved') {
-      // If we are viewing a specific saved content (from previous navigation)
-      if (currentContent) {
-        return (
-          <MemorizationView
-            words={words}
-            selectedIndices={selectedIndices}
-            originalText={textInput}
-            onBack={() => {
-              setCurrentContent(null);
-            }}
-            onSave={() => {}}
-            onViewSaved={() => setCurrentPage('saved')}
-          />
-        );
-      }
-      return <SavedContent onLoadContent={handleLoadContent} onCreateNew={() => setCurrentPage('new')} />;
-    }
-
-    // 6. NEW MEMORIZATION (CREATE)
-    if (currentPage === 'new') {
-      // If we are viewing a just-loaded content
-      if (memorizationStep === 'view') {
-        return (
-          <MemorizationView
-            words={words}
-            selectedIndices={selectedIndices}
-            originalText={textInput}
-            onBack={() => {
-              if (currentContent) {
-                setCurrentContent(null);
-                setCurrentPage('saved');
-              } else {
-                setMemorizationStep('selection');
-              }
-            }}
-            onSave={() => {}}
-            onViewSaved={() => setCurrentPage('saved')}
-          />
-        );
-      }
-      if (memorizationStep === 'selection') {
-        return (
-          <WordSelection
-            text={textInput}
-            onNext={handleWordSelection}
-            onBack={() => setMemorizationStep('input')}
-          />
-        );
-      }
-      // Default: Input
-      return <TextInput onNext={handleTextInput} />;
-    }
-
-    // 7. PROOFREADING FLOW
-    if (currentPage === 'proofreading') {
-      if (proofreadingStep === 'list') {
-        return (
-          <SavedProofreadingPractices
-            practices={proofreadingPractices}
-            onCreateNew={() => setProofreadingStep('input')}
-            onSelectPractice={(practice) => {
-              setSelectedProofreadingPractice(practice);
-              setProofreadingStep('practice');
-            }}
-            onAssignPractice={(practice) => {}}
-            onDeletePractice={deleteProofreadingPractice}
-          />
-        );
-      }
-      if (proofreadingStep === 'input') return <ProofreadingInput onNext={handleProofreadingInput} />;
-      if (proofreadingStep === 'answers') {
-        return (
-          <ProofreadingAnswerSetting
-            sentences={proofreadingSentences}
-            onNext={handleProofreadingAnswers}
-            onBack={() => setProofreadingStep('input')}
-          />
-        );
-      }
-      if (proofreadingStep === 'preview') {
-        return (
-          <ProofreadingPreview
-            sentences={proofreadingSentences}
-            answers={proofreadingAnswers}
-            onNext={handleProofreadingSave}
-            onBack={() => setProofreadingStep('answers')}
-          />
-        );
-      }
-      if (proofreadingStep === 'practice' && selectedProofreadingPractice) {
-        return (
-          <ProofreadingPracticeComponent
-            sentences={selectedProofreadingPractice.sentences}
-            answers={selectedProofreadingPractice.answers}
-            onBack={() => setProofreadingStep('list')}
-            practiceId={selectedProofreadingPractice.id}
-          />
-        );
-      }
-    }
-
-    // 8. PROOFREADING ASSIGNMENTS (Specific view)
-    if (currentPage === 'proofreadingAssignments') {
-      if (assignedProofreadingPractice) {
-        return (
-          <ProofreadingPracticeComponent
-            sentences={assignedProofreadingPractice.sentences}
-            answers={assignedProofreadingPractice.answers}
-            onBack={() => setAssignedProofreadingPractice(null)}
-            assignmentId={assignedProofreadingPractice.id}
-          />
-        );
-      }
-      return <AssignedProofreadingPractices onLoadContent={setAssignedProofreadingPractice} />;
-    }
-
-    // 9. SPELLING FLOW
-    if (currentPage === 'spelling') {
-      if (spellingStep === 'list') {
-        return (
-          <SavedPractices
-            onCreateNew={() => setSpellingStep('input')}
-            onSelectPractice={(practice) => {
-              setSelectedSpellingPractice(practice);
-              setSpellingStep('practice');
-            }}
-          />
-        );
-      }
-      if (spellingStep === 'input') {
-        return (
-          <SpellingInput 
-             onNext={(title, words) => {
-               setCurrentSpellingPractice({ title, words });
-               setSpellingStep('preview');
-             }} 
-             onBack={() => setSpellingStep('list')}
-          />
-        );
-      }
-      if (spellingStep === 'preview') {
-        return (
-          <SpellingPreview
-            title={currentSpellingPractice.title}
-            words={currentSpellingPractice.words}
-            onNext={handleSpellingSave}
-            onBack={() => setSpellingStep('input')}
-          />
-        );
-      }
-      if (spellingStep === 'practice' && selectedSpellingPractice) {
-        return (
-          <SpellingPractice
-            title={selectedSpellingPractice.title}
-            words={selectedSpellingPractice.words}
-            onBack={() => setSpellingStep('list')}
-            practiceId={selectedSpellingPractice.id}
-          />
-        );
-      }
-    }
-
-    return <div>Page under construction: {currentPage}</div>;
-  };
-
-  return (
-    <>
-      <Navigation
-        currentPage={currentPage}
-        onPageChange={handlePageChange}
-        userRole={user?.role || null}
-      />
-      <div className="ml-64">
-        {renderCurrentView()}
-      </div>
-      <SourceInspector />
-    </>
-  );
+interface NavigationProps {
+  currentPage: string;
+  onPageChange: (page: any) => void;
+  userRole: string | null;
+  onLogin?: () => void;
 }
 
-// Main App Component
-function App() {
-  return (
-    <AuthProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </AuthProvider>
-  );
-}
+const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, userRole, onLogin }) => {
+  const { user, signOut } = useAuth();
+  
+  // Helper to check if a button is active
+  const isActive = (pageName: string) => currentPage === pageName;
+  
+  // Style helper
+  const getButtonClass = (pageName: string) => 
+    `flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors w-full ${
+      isActive(pageName)
+        ? 'bg-blue-600 text-white shadow-md'
+        : 'text-gray-700 hover:bg-gray-100'
+    }`;
 
-export default App;
+  return (
+    <nav
+      className="fixed top-0 left-0 h-full w-64 bg-white border-r-2 border-gray-200 z-50 shadow-lg flex flex-col"
+      style={{ fontFamily: 'Times New Roman, serif' }}
+    >
+      <div className="py-8 px-4 flex-grow overflow-y-auto">
+        {/* --- 1. HEADER --- */}
+        <div className="mb-6 px-4">
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <BookOpen className="text-blue-600" />
+            Memorize
+          </h1>
+        </div>
+
+        <div className="space-y-1">
+          {/* --- 2. EXISTING BUTTONS (Memorization) --- */}
+          <p className="px-4 mt-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Memorization
+          </p>
+          
+          <button onClick={() => onPageChange('new')} className={getButtonClass('new')}>
+            <Home size={20} />
+            <span>New</span>
+          </button>
+
+          <button onClick={() => onPageChange('saved')} className={getButtonClass('saved')}>
+            <BookMarked size={20} />
+            <span>Saved</span>
+          </button>
+
+          {/* --- 3. NEW PRACTICE MODES --- */}
+          <p className="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Practice Modes
+          </p>
+
+          <button onClick={() => onPageChange('spelling')} className={getButtonClass('spelling')}>
+            <PenTool size={20} />
+            <span>Spelling</span>
+          </button>
+
+          <button onClick={() => onPageChange('proofreading')} className={getButtonClass('proofreading')}>
+            <CheckSquare size={20} />
+            <span>Proofreading</span>
+          </button>
+
+          {/* --- 4. STUDENT FEATURES (Assignments & Progress) --- */}
+          {user && (
+            <>
+              <p className="px-4 mt-6 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                My Learning
+              </p>
+
+              <button onClick={() => onPageChange('assignments')} className={getButtonClass('assignments')}>
+                <ClipboardList size={20} />
+                <span>My Assignments</span>
+              </button>
+
+              <button onClick={() => onPageChange('progress')} className={getButtonClass('progress')}>
+                <TrendingUp size={20} />
+                <span>My Progress</span>
+              </button>
+            </>
+          )}
+
+          {/* --- 5. ADMIN ONLY --- */}
+          {userRole === 'admin' && (
+            <>
+              <div className="my-4 border-t border-gray-200" />
+              <p className="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Admin Controls
+              </p>
+              
+              <button onClick={() => onPageChange('admin')} className={getButtonClass('admin')}>
+                <Shield size={20} />
+                <span>User Management</span>
+              </button>
+              
+              <button onClick={() => onPageChange('assignmentManagement')} className={getButtonClass('assignmentManagement')}>
+                <ClipboardList size={20} />
+                <span>Manage Assignments</span>
+              </button>
+
+              <button onClick={() => onPageChange('database')} className={getButtonClass('database')}>
+                <Database size={20} />
+                <span>Content Database</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* --- FOOTER (Sign Out) --- */}
+      <div className="p-4 border-t border-gray-200 bg-gray-50">
+        {user ? (
+          <div>
+            <div className="mb-3 px-2">
+              <p className="text-sm font-bold text-gray-800">{user.display_name || user.username}</p>
+              <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors text-sm font-medium"
+            >
+              <LogOut size={16} />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onLogin}
+            className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <LogIn size={18} />
+            <span>Sign In</span>
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+};
+
+export default Navigation;
