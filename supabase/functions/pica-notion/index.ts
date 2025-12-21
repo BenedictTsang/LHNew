@@ -164,6 +164,10 @@ Deno.serve(async (req: Request) => {
             "Notion-Version": "2022-06-28",
           },
           body: JSON.stringify({
+          filter: {
+          property: "Status", 
+          select: { equals: "Published" }
+            },
             page_size: 100,
           }),
         }
