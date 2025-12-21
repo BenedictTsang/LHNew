@@ -52,8 +52,68 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const path = url.pathname;
 
+    if (path.endsWith("/debug-raw")) {
+      const databaseId = "5f5f006e-9bbb-4683-948f-7aeb58aae9b1";
+      const requestUrl = `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`;
+      const requestHeaders = {
+        "x-pica-secret": picaSecretKey,
+        "x-pica-connection-key": picaNotionConnectionKey,
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28",
+      };
+
+      const notionResponse = await fetch(requestUrl, {
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify({
+          page_size: 100,
+        }),
+      });
+
+      const responseText = await notionResponse.text();
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(responseText);
+      } catch {
+        parsedResponse = responseText;
+      }
+
+      return new Response(
+        JSON.stringify({
+          debug: {
+            hasPicaSecretKey: !!picaSecretKey,
+            picaSecretKeyLength: picaSecretKey?.length || 0,
+            picaSecretKeyPrefix: picaSecretKey?.substring(0, 10) || "N/A",
+            hasPicaNotionConnectionKey: !!picaNotionConnectionKey,
+            picaNotionConnectionKeyLength: picaNotionConnectionKey?.length || 0,
+            picaNotionConnectionKeyPrefix: picaNotionConnectionKey?.substring(0, 10) || "N/A",
+          },
+          request: {
+            url: requestUrl,
+            method: "POST",
+            headersSent: {
+              "x-pica-secret": `${picaSecretKey?.substring(0, 10)}...`,
+              "x-pica-connection-key": `${picaNotionConnectionKey?.substring(0, 10)}...`,
+              "Content-Type": "application/json",
+              "Notion-Version": "2022-06-28",
+            },
+          },
+          response: {
+            status: notionResponse.status,
+            statusText: notionResponse.statusText,
+            headers: Object.fromEntries(notionResponse.headers.entries()),
+            body: parsedResponse,
+          },
+        }, null, 2),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     if (path.endsWith("/list-activities")) {
-      const databaseId = "5f5f006e9bbb4683948f7aeb58aae9b1";
+      const databaseId = "5f5f006e-9bbb-4683-948f-7aeb58aae9b1";
 
       const notionResponse = await fetch(
         `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`,
