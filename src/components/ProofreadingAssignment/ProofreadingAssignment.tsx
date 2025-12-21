@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
 import { ProofreadingPractice } from '../../types';
 import ProofreadingPracticeComponent from '../ProofreadingPractice/ProofreadingPractice';
 
@@ -58,14 +57,25 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
       const nonAdminUsers = (data.users || []).filter((u: User) => u.role !== 'admin');
       setUsers(nonAdminUsers);
 
-      const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('proofreading_practice_assignments')
-        .select('user_id')
-        .eq('practice_id', practice.id);
+      const assignmentsResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-assignments/list`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            practiceId: practice.id,
+            adminUserId: currentUser?.id,
+          }),
+        }
+      );
 
-      if (assignmentsError) throw assignmentsError;
+      const assignmentsResult = await assignmentsResponse.json();
+      if (!assignmentsResponse.ok) throw new Error(assignmentsResult.error);
 
-      const assignedUserIds = new Set(assignmentsData?.map((a) => a.user_id) || []);
+      const assignedUserIds = new Set(assignmentsResult.assignments?.map((a: { user_id: string }) => a.user_id) || []);
       setAssignments(assignedUserIds);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -113,12 +123,6 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
       if (!confirmed) return;
     }
 
-    const insertData = usersToAssign.map(userId => ({
-      practice_id: practice.id,
-      user_id: userId,
-      assigned_by: currentUser?.id,
-    }));
-
     try {
       setAssigning(true);
       setError(null);
@@ -129,12 +133,25 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
         return;
       }
 
-      const { error: insertError } = await supabase
-        .from('proofreading_practice_assignments')
-        .insert(insertData);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proofreading-assignments/assign`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            practiceId: practice.id,
+            userIds: usersToAssign,
+            assignedBy: currentUser.id,
+          }),
+        }
+      );
 
-      if (insertError) {
-        setError(insertError.message || 'Failed to assign practice');
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || 'Failed to assign practice');
         return;
       }
 
