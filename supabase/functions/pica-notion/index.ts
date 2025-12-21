@@ -91,15 +91,15 @@ Deno.serve(async (req: Request) => {
       );
       results.dataSourceQueryAction = dataSourceQueryAction;
 
-      const requestUrl1 = `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`;
+      const requestUrl1 = `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`;
       const response1 = await fetch(requestUrl1, {
         method: "POST",
         headers: {
           "x-pica-secret": picaSecretKey,
           "x-pica-connection-key": picaNotionConnectionKey,
-          "x-pica-action-id": dataSourceQueryAction?.key || "",
+          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
           "Content-Type": "application/json",
-          "Notion-Version": "2022-06-28",
+          "Notion-Version": "2025-09-03", 
         },
         body: JSON.stringify({ page_size: 100 }),
       });
@@ -111,12 +111,12 @@ Deno.serve(async (req: Request) => {
       const requestUrl2 = `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`;
       const response2 = await fetch(requestUrl2, {
         method: "POST",
-        headers: {
+        headers:  {
           "x-pica-secret": picaSecretKey,
           "x-pica-connection-key": picaNotionConnectionKey,
-          "x-pica-action-id": dataSourceQueryAction?.key || "",
+          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
           "Content-Type": "application/json",
-          "Notion-Version": "2022-06-28",
+          "Notion-Version": "2025-09-03", 
         },
         body: JSON.stringify({ page_size: 100 }),
       });
