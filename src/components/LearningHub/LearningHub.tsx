@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb, RefreshCw, AlertCircle, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDiagnostics } from '../../context/DiagnosticContext';
 import { LearningActivity } from '../../types';
 import InteractiveExperience from './InteractiveExperience';
 
 const LearningHub: React.FC = () => {
   const { user } = useAuth();
+  const { setCurrentPage, captureError } = useDiagnostics();
   const [activities, setActivities] = useState<LearningActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<LearningActivity | null>(null);
 
   useEffect(() => {
+    setCurrentPage('learning-hub');
     fetchActivities();
   }, []);
 
@@ -33,13 +36,30 @@ const LearningHub: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        const errorObj = {
+          code: `HTTP_${response.status}`,
+          message: data.error || 'Failed to fetch activities from Notion',
+          details: data.details || '',
+          status: response.status,
+        };
+        captureError(errorObj, 'Learning Hub - Fetch Activities', {
+          endpoint: 'pica-notion/list-activities',
+          status: response.status,
+          responseData: data,
+        });
         throw new Error(data.error || 'Failed to fetch activities');
       }
 
       setActivities(data.activities || []);
     } catch (err) {
       console.error('Error fetching activities:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load activities');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load activities';
+      setError(errorMessage);
+      if (!(err instanceof Error && err.message.includes('Failed to fetch activities'))) {
+        captureError(err, 'Learning Hub - Network Error', {
+          endpoint: 'pica-notion/list-activities',
+        });
+      }
     } finally {
       setLoading(false);
     }
