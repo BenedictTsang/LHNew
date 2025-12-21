@@ -60,7 +60,6 @@ const PAGE_DISPLAY_NAMES: Record<string, string> = {
   'practice': 'Practice Mode',
   'assignedPractice': 'Assigned Practice',
   'publicPractice': 'Public Practice',
-  'learning-hub': 'Learning Hub',
 };
 
 export const GlobalDiagnosticPanel: React.FC<GlobalDiagnosticPanelProps> = ({ currentPage }) => {

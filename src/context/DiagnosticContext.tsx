@@ -22,8 +22,7 @@ export type PageType =
   | 'proofreadingAssignments'
   | 'memorization-assignment'
   | 'practice'
-  | 'assignedPractice'
-  | 'learning-hub';
+  | 'assignedPractice';
 
 interface DiagnosticContextType {
   isEnabled: boolean;
