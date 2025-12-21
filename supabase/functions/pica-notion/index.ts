@@ -54,57 +54,95 @@ Deno.serve(async (req: Request) => {
 
     if (path.endsWith("/debug-raw")) {
       const databaseId = "5f5f006e-9bbb-4683-948f-7aeb58aae9b1";
-      const requestUrl = `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`;
-      const requestHeaders = {
-        "x-pica-secret": picaSecretKey,
-        "x-pica-connection-key": picaNotionConnectionKey,
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28",
+      const results: Record<string, unknown> = {
+        debug: {
+          hasPicaSecretKey: !!picaSecretKey,
+          picaSecretKeyLength: picaSecretKey?.length || 0,
+          picaSecretKeyPrefix: picaSecretKey?.substring(0, 10) || "N/A",
+          hasPicaNotionConnectionKey: !!picaNotionConnectionKey,
+          picaNotionConnectionKeyLength: picaNotionConnectionKey?.length || 0,
+          picaNotionConnectionKeyPrefix: picaNotionConnectionKey?.substring(0, 10) || "N/A",
+          databaseId,
+        },
       };
 
-      const notionResponse = await fetch(requestUrl, {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify({
-          page_size: 100,
-        }),
-      });
+      const actionsPage1 = await fetch(
+        "https://api.picaos.com/v1/available-actions/notion?page=1&limit=50",
+        {
+          method: "GET",
+          headers: {
+            "x-pica-secret": picaSecretKey,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const page1Data = await actionsPage1.json();
 
-      const responseText = await notionResponse.text();
-      let parsedResponse;
-      try {
-        parsedResponse = JSON.parse(responseText);
-      } catch {
-        parsedResponse = responseText;
-      }
+      const allActions = page1Data?.rows || [];
+      results.availableActions = allActions.map((a: { title: string; key: string; path: string; method: string }) => ({
+        title: a.title,
+        key: a.key,
+        path: a.path,
+        method: a.method,
+      }));
+
+      const dataSourceQueryAction = allActions.find(
+        (a: { key: string }) => a.key?.includes("datasourcepages")
+      );
+      results.dataSourceQueryAction = dataSourceQueryAction;
+
+      const requestUrl1 = `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`;
+      const response1 = await fetch(requestUrl1, {
+        method: "POST",
+        headers: {
+          "x-pica-secret": picaSecretKey,
+          "x-pica-connection-key": picaNotionConnectionKey,
+          "x-pica-action-id": dataSourceQueryAction?.key || "",
+          "Content-Type": "application/json",
+          "Notion-Version": "2022-06-28",
+        },
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      const text1 = await response1.text();
+      let parsed1;
+      try { parsed1 = JSON.parse(text1); } catch { parsed1 = text1; }
+      results.attempt1_databases_path = { url: requestUrl1, status: response1.status, body: parsed1 };
+
+      const requestUrl2 = `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`;
+      const response2 = await fetch(requestUrl2, {
+        method: "POST",
+        headers: {
+          "x-pica-secret": picaSecretKey,
+          "x-pica-connection-key": picaNotionConnectionKey,
+          "x-pica-action-id": dataSourceQueryAction?.key || "",
+          "Content-Type": "application/json",
+          "Notion-Version": "2022-06-28",
+        },
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      const text2 = await response2.text();
+      let parsed2;
+      try { parsed2 = JSON.parse(text2); } catch { parsed2 = text2; }
+      results.attempt2_data_sources_path = { url: requestUrl2, status: response2.status, body: parsed2 };
+
+      const requestUrl3 = `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}/query`;
+      const response3 = await fetch(requestUrl3, {
+        method: "POST",
+        headers: {
+          "x-pica-secret": picaSecretKey,
+          "x-pica-connection-key": picaNotionConnectionKey,
+          "Content-Type": "application/json",
+          "Notion-Version": "2022-06-28",
+        },
+        body: JSON.stringify({ page_size: 100 }),
+      });
+      const text3 = await response3.text();
+      let parsed3;
+      try { parsed3 = JSON.parse(text3); } catch { parsed3 = text3; }
+      results.attempt3_v1_databases_path = { url: requestUrl3, status: response3.status, body: parsed3 };
 
       return new Response(
-        JSON.stringify({
-          debug: {
-            hasPicaSecretKey: !!picaSecretKey,
-            picaSecretKeyLength: picaSecretKey?.length || 0,
-            picaSecretKeyPrefix: picaSecretKey?.substring(0, 10) || "N/A",
-            hasPicaNotionConnectionKey: !!picaNotionConnectionKey,
-            picaNotionConnectionKeyLength: picaNotionConnectionKey?.length || 0,
-            picaNotionConnectionKeyPrefix: picaNotionConnectionKey?.substring(0, 10) || "N/A",
-          },
-          request: {
-            url: requestUrl,
-            method: "POST",
-            headersSent: {
-              "x-pica-secret": `${picaSecretKey?.substring(0, 10)}...`,
-              "x-pica-connection-key": `${picaNotionConnectionKey?.substring(0, 10)}...`,
-              "Content-Type": "application/json",
-              "Notion-Version": "2022-06-28",
-            },
-          },
-          response: {
-            status: notionResponse.status,
-            statusText: notionResponse.statusText,
-            headers: Object.fromEntries(notionResponse.headers.entries()),
-            body: parsedResponse,
-          },
-        }, null, 2),
+        JSON.stringify(results, null, 2),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
