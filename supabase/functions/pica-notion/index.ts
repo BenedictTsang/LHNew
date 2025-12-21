@@ -163,7 +163,7 @@ Deno.serve(async (req: Request) => {
           "x-pica-connection-key": picaNotionConnectionKey,
           "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
           "Content-Type": "application/json",
-          "Notion-Version": "2025-09-03",
+          "Notion-Version": "2025-09-03", 
         },
           body: JSON.stringify({
           filter: {
@@ -285,11 +285,12 @@ Deno.serve(async (req: Request) => {
         {
           method: "GET",
           headers: {
-            "x-pica-secret": picaSecretKey,
-            "x-pica-connection-key": picaNotionConnectionKey,
-            "Content-Type": "application/json",
-            "Notion-Version": "2022-06-28",
-          },
+          "x-pica-secret": picaSecretKey,
+          "x-pica-connection-key": picaNotionConnectionKey,
+          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
+          "Content-Type": "application/json",
+          "Notion-Version": "2025-09-03", 
+        },
         }
       );
 
