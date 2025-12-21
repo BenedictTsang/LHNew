@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
       try { parsed2 = JSON.parse(text2); } catch { parsed2 = text2; }
       results.attempt2_data_sources_path = { url: requestUrl2, status: response2.status, body: parsed2 };
 
-      const requestUrl3 = `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}/query`;
+      const requestUrl3 = `https://api.picaos.com/v1/passthrough/v1/data_sources/${databaseId}/query`;
       const response3 = await fetch(requestUrl3, {
         method: "POST",
         headers: {
