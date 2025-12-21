@@ -27,6 +27,7 @@ import UserAnalytics from './components/UserAnalytics/UserAnalytics';
 import AssignedMemorizations from './components/AssignedMemorizations/AssignedMemorizations';
 import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
+import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import { Login } from './components/Auth/Login';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
@@ -642,6 +643,26 @@ function AppContent() {
     return appState.page;
   };
 
+  const getDiagnosticPage = (): string => {
+    if (appState.page === 'practice') return 'practice';
+    if (appState.page === 'publicPractice') return 'publicPractice';
+    if (appState.page === 'assignedPractice') return 'assignedPractice';
+
+    if (appState.page === 'proofreading') {
+      return `proofreading-${appState.step}`;
+    }
+
+    if (appState.page === 'spelling') {
+      return `spelling-${appState.step}`;
+    }
+
+    if (appState.page === 'progress') {
+      return user?.role === 'admin' ? 'progress-admin' : 'progress';
+    }
+
+    return appState.page;
+  };
+
   return (
     <>
       <Navigation
@@ -660,6 +681,7 @@ function AppContent() {
           </div>
         </div>
       )}
+      <GlobalDiagnosticPanel currentPage={getDiagnosticPage()} />
     </>
   );
 }

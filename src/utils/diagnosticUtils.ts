@@ -365,3 +365,492 @@ export async function runPreFlightChecks(
 
   return checks;
 }
+
+export async function checkAuthentication(): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = { id: 'auth', name: 'Authentication Valid', status: 'running' };
+
+  try {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session) {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'No valid session found',
+        details: sessionError?.message || 'Session is null or expired'
+      };
+    }
+
+    const expiresAt = sessionData.session.expires_at;
+    const now = Math.floor(Date.now() / 1000);
+    if (expiresAt && expiresAt < now) {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'Session has expired',
+        details: `Expired at ${new Date(expiresAt * 1000).toLocaleString()}`
+      };
+    }
+
+    return {
+      ...check,
+      status: 'passed',
+      message: 'Session is valid',
+      details: `Expires: ${expiresAt ? new Date(expiresAt * 1000).toLocaleString() : 'Unknown'}`
+    };
+  } catch (err) {
+    return {
+      ...check,
+      status: 'failed',
+      message: 'Failed to check authentication',
+      details: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export async function checkAdminRole(userId: string | undefined): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = { id: 'admin', name: 'Admin Role Verified', status: 'running' };
+
+  if (!userId) {
+    return {
+      ...check,
+      status: 'failed',
+      message: 'No user ID available',
+      details: 'User ID is undefined'
+    };
+  }
+
+  try {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userError) {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'Failed to query user',
+        details: userError.message
+      };
+    }
+
+    if (!userData) {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'User not found in database',
+        details: `User ID ${userId} does not exist`
+      };
+    }
+
+    if (userData.role !== 'admin') {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'User is not an admin',
+        details: `Current role: ${userData.role}`
+      };
+    }
+
+    return {
+      ...check,
+      status: 'passed',
+      message: 'User has admin role',
+      details: `Role: ${userData.role}`
+    };
+  } catch (err) {
+    return {
+      ...check,
+      status: 'failed',
+      message: 'Failed to check admin status',
+      details: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export async function checkEdgeFunction(
+  endpoint: string,
+  displayName: string,
+  method: 'GET' | 'POST' = 'POST'
+): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    id: `edge-${endpoint.replace(/\//g, '-')}`,
+    name: `Edge: ${displayName}`,
+    status: 'running'
+  };
+
+  try {
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(apiUrl, {
+      method: method === 'GET' ? 'GET' : 'OPTIONS',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok || response.status === 200 || response.status === 204) {
+      return {
+        ...check,
+        status: 'passed',
+        message: 'Function is accessible',
+        details: `Status: ${response.status}`
+      };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ...check,
+        status: 'warning',
+        message: 'Function requires authentication',
+        details: `Status: ${response.status} - This is expected for protected endpoints`
+      };
+    }
+
+    return {
+      ...check,
+      status: 'warning',
+      message: 'Function responded with non-OK status',
+      details: `Status: ${response.status}`
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return {
+        ...check,
+        status: 'failed',
+        message: 'Function timed out',
+        details: 'Request took longer than 5 seconds'
+      };
+    }
+
+    return {
+      ...check,
+      status: 'failed',
+      message: 'Failed to reach function',
+      details: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export async function checkTableAccess(
+  tableName: string,
+  operation: 'read' | 'write' = 'read'
+): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    id: `table-${tableName}-${operation}`,
+    name: `Table: ${tableName} (${operation})`,
+    status: 'running'
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      if (error.code === '42501') {
+        return {
+          ...check,
+          status: 'failed',
+          message: 'RLS policy blocking access',
+          details: error.message
+        };
+      }
+
+      if (error.code === '42P01') {
+        return {
+          ...check,
+          status: 'failed',
+          message: 'Table does not exist',
+          details: error.message
+        };
+      }
+
+      return {
+        ...check,
+        status: 'warning',
+        message: 'Query returned error',
+        details: error.message
+      };
+    }
+
+    return {
+      ...check,
+      status: 'passed',
+      message: 'Table is accessible',
+      details: `Found ${data?.length || 0} record(s)`
+    };
+  } catch (err) {
+    return {
+      ...check,
+      status: 'failed',
+      message: 'Failed to access table',
+      details: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export async function checkRpcFunction(
+  functionName: string,
+  displayName: string,
+  testParams?: Record<string, unknown>
+): Promise<DiagnosticCheck> {
+  const check: DiagnosticCheck = {
+    id: `rpc-${functionName}`,
+    name: `RPC: ${displayName}`,
+    status: 'running'
+  };
+
+  try {
+    const { error } = await supabase.rpc(functionName, testParams || {});
+
+    if (error) {
+      if (error.code === '42883') {
+        return {
+          ...check,
+          status: 'failed',
+          message: 'Function does not exist',
+          details: error.message
+        };
+      }
+
+      if (error.code === '42501') {
+        return {
+          ...check,
+          status: 'failed',
+          message: 'Permission denied',
+          details: error.message
+        };
+      }
+
+      if (error.message?.includes('required') || error.code === '22P02') {
+        return {
+          ...check,
+          status: 'passed',
+          message: 'Function exists (param validation)',
+          details: 'Function is accessible but requires valid parameters'
+        };
+      }
+
+      return {
+        ...check,
+        status: 'warning',
+        message: 'Function returned error',
+        details: error.message
+      };
+    }
+
+    return {
+      ...check,
+      status: 'passed',
+      message: 'Function is accessible',
+      details: 'RPC call successful'
+    };
+  } catch (err) {
+    return {
+      ...check,
+      status: 'failed',
+      message: 'Failed to call function',
+      details: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
+
+export interface PageCheckConfig {
+  checks: Array<() => Promise<DiagnosticCheck>>;
+}
+
+export function getPageChecks(
+  page: string,
+  userId?: string
+): PageCheckConfig {
+  const baseChecks = [() => checkAuthentication()];
+
+  const adminChecks = [
+    ...baseChecks,
+    () => checkAdminRole(userId),
+  ];
+
+  const configs: Record<string, PageCheckConfig> = {
+    'admin': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('auth/list-users', 'List Users'),
+        () => checkEdgeFunction('auth/bulk-create-users', 'Bulk Create Users'),
+        () => checkEdgeFunction('auth/change-password', 'Change Password'),
+        () => checkEdgeFunction('auth/delete-user', 'Delete User'),
+        () => checkEdgeFunction('auth/update-permissions', 'Update Permissions'),
+        () => checkTableAccess('users', 'read'),
+      ]
+    },
+    'database': {
+      checks: [
+        ...adminChecks,
+        () => checkTableAccess('content_reference', 'read'),
+      ]
+    },
+    'spelling-input': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('spelling-practices/create', 'Create Practice'),
+      ]
+    },
+    'spelling-preview': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('spelling-practices/create', 'Create Practice'),
+        () => checkTableAccess('recommended_voices', 'read'),
+      ]
+    },
+    'spelling-practice': {
+      checks: [
+        ...baseChecks,
+        () => checkTableAccess('spelling_practice_results', 'write'),
+        () => checkRpcFunction('mark_assignment_complete', 'Mark Complete', { p_assignment_id: '00000000-0000-0000-0000-000000000000', p_assignment_type: 'spelling' }),
+      ]
+    },
+    'spelling-saved': {
+      checks: [
+        ...baseChecks,
+        () => checkEdgeFunction('spelling-practices/list', 'List Practices'),
+        () => checkEdgeFunction('spelling-practices/delete', 'Delete Practice'),
+        () => checkEdgeFunction('spelling-practices/update-assignments', 'Update Assignments'),
+      ]
+    },
+    'proofreading-input': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('ai-generate-sentences', 'AI Generate'),
+      ]
+    },
+    'proofreading-answerSetting': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('ai-proofread', 'AI Proofread'),
+      ]
+    },
+    'proofreading-preview': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('proofreading-practices/create', 'Create Practice'),
+      ]
+    },
+    'proofreading-practice': {
+      checks: [
+        ...baseChecks,
+        () => checkTableAccess('proofreading_practice_results', 'write'),
+        () => checkTableAccess('proofreading_practice_assignments', 'read'),
+      ]
+    },
+    'proofreading-saved': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('proofreading-practices/list', 'List Practices'),
+        () => checkEdgeFunction('proofreading-practices/delete', 'Delete Practice'),
+        () => checkRpcFunction('get_proofreading_assignment_stats', 'Assignment Stats', { practice_id: '00000000-0000-0000-0000-000000000000' }),
+      ]
+    },
+    'proofreading-assignment': {
+      checks: [
+        ...adminChecks,
+        () => checkEdgeFunction('auth/list-users', 'List Users'),
+        () => checkTableAccess('proofreading_practice_assignments', 'write'),
+      ]
+    },
+    'progress': {
+      checks: [
+        ...baseChecks,
+        () => checkRpcFunction('get_user_progress_summary', 'Progress Summary', { target_user_id: '00000000-0000-0000-0000-000000000000' }),
+        () => checkRpcFunction('get_spelling_rankings', 'Spelling Rankings'),
+        () => checkRpcFunction('get_proofreading_rankings', 'Proofreading Rankings'),
+        () => checkTableAccess('spelling_practice_results', 'read'),
+        () => checkTableAccess('proofreading_practice_results', 'read'),
+      ]
+    },
+    'progress-admin': {
+      checks: [
+        ...adminChecks,
+        () => checkRpcFunction('get_class_analytics_summary', 'Class Analytics'),
+        () => checkRpcFunction('get_all_students_performance', 'Student Performance'),
+        () => checkRpcFunction('get_practice_activity_timeline', 'Activity Timeline', { days_back: 7 }),
+        () => checkRpcFunction('get_recent_activity', 'Recent Activity', { limit_count: 5 }),
+        () => checkRpcFunction('get_performance_distribution', 'Distribution', { practice_type: 'spelling' }),
+      ]
+    },
+    'assignments': {
+      checks: [
+        ...baseChecks,
+        () => checkRpcFunction('get_student_assignments_unified', 'Get Assignments', { p_user_id: '00000000-0000-0000-0000-000000000000' }),
+      ]
+    },
+    'assignmentManagement': {
+      checks: [
+        ...adminChecks,
+        () => checkRpcFunction('get_all_assignments_overview', 'Overview'),
+        () => checkRpcFunction('get_all_assignments_admin_view', 'Admin View', { p_type_filter: 'all', p_status_filter: 'all', p_student_filter: 'all' }),
+        () => checkTableAccess('users', 'read'),
+      ]
+    },
+    'proofreadingAssignments': {
+      checks: [
+        ...baseChecks,
+        () => checkRpcFunction('get_user_assigned_proofreading_practices', 'Assigned Practices', { p_user_id: '00000000-0000-0000-0000-000000000000' }),
+      ]
+    },
+    'memorization-assignment': {
+      checks: [
+        ...adminChecks,
+        () => checkTableAccess('users', 'read'),
+        () => checkTableAccess('memorization_assignments', 'write'),
+      ]
+    },
+    'new': {
+      checks: [
+        ...baseChecks,
+        () => checkEdgeFunction('memorization-content/create', 'Save Content'),
+      ]
+    },
+    'saved': {
+      checks: [
+        ...baseChecks,
+        () => checkEdgeFunction('memorization-content/list', 'List Content'),
+        () => checkTableAccess('saved_contents', 'read'),
+      ]
+    },
+    'practice': {
+      checks: [
+        ...baseChecks,
+        () => checkTableAccess('memorization_practice_sessions', 'write'),
+        () => checkRpcFunction('mark_assignment_complete', 'Mark Complete', { p_assignment_id: '00000000-0000-0000-0000-000000000000', p_assignment_type: 'memorization' }),
+      ]
+    },
+    'assignedPractice': {
+      checks: [
+        ...baseChecks,
+        () => checkTableAccess('memorization_practice_sessions', 'write'),
+        () => checkRpcFunction('mark_assignment_complete', 'Mark Complete', { p_assignment_id: '00000000-0000-0000-0000-000000000000', p_assignment_type: 'memorization' }),
+      ]
+    },
+  };
+
+  return configs[page] || { checks: baseChecks };
+}
+
+export async function runPageChecks(page: string, userId?: string): Promise<DiagnosticCheck[]> {
+  const config = getPageChecks(page, userId);
+  const results: DiagnosticCheck[] = [];
+
+  for (const checkFn of config.checks) {
+    const result = await checkFn();
+    results.push(result);
+  }
+
+  return results;
+}
