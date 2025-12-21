@@ -151,8 +151,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (path.endsWith("/list-activities")) {
+        if (path.endsWith("/list-activities")) {
       const databaseId = "2559baca6fa38075b0f8e97713054434";
+      
+      // FETCH ACTIONS FIRST
+      const actionsResp = await fetch("https://api.picaos.com/v1/available-actions/notion?page=1&limit=50", {
+        headers: { "x-pica-secret": picaSecretKey }
+      });
+      const actionsData = await actionsResp.json();
+      const dataSourceQueryAction = actionsData.rows?.find(a => a.key?.includes("datasourcepages"));
 
       const notionResponse = await fetch(
         `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`,
