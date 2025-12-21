@@ -166,12 +166,12 @@ Deno.serve(async (req: Request) => {
         {
           method: "POST",
           headers: {
-          "x-pica-secret": picaSecretKey,
-          "x-pica-connection-key": picaNotionConnectionKey,
-          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
-          "Content-Type": "application/json",
-          "Notion-Version": "2025-09-03", 
-        },
+            "x-pica-secret": picaSecretKey,
+            "x-pica-connection-key": picaNotionConnectionKey,
+            "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
+            "Content-Type": "application/json",
+            "Notion-Version": "2025-09-03"
+          },
           body: JSON.stringify({
           filter: {
           property: "Status", 
