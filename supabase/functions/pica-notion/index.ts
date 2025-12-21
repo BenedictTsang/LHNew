@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/list-activities")) {
-      const databaseId = "5f5f006e-9bbb-4683-948f-7aeb58aae9b1";
+      const databaseId = "2559baca6fa38075b0f8e97713054434";
 
       const notionResponse = await fetch(
         `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`,
