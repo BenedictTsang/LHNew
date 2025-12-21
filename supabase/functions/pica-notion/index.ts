@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
       const databaseId = "2559baca6fa38075b0f8e97713054434";
 
       const notionResponse = await fetch(
-        `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`,
+        `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`,
         {
           method: "POST",
           headers: {
