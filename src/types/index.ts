@@ -79,6 +79,7 @@ export interface UserProfile {
   accent_preference?: string;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
+  can_access_learning_hub?: boolean;
 }
 
 export interface AuthContextType {
@@ -239,4 +240,23 @@ export interface AssignedProofreadingPracticeContent {
   completed: boolean;
   completed_at?: string;
   assigned_by_username: string;
+}
+
+export interface LearningActivity {
+  id: string;
+  name: string;
+  thumbnail: string | null;
+  difficulty: string;
+  questionsJson: LearningQuestion[];
+}
+
+export interface LearningQuestion {
+  type: 'multiple_choice' | 'true_false' | 'fill_blank' | 'short_answer' | 'matching' | string;
+  question: string;
+  options?: string[];
+  correctAnswer?: string | string[] | boolean;
+  explanation?: string;
+  hint?: string;
+  points?: number;
+  pairs?: { left: string; right: string }[];
 }

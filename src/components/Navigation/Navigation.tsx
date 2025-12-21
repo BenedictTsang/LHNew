@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban, BookMarked } from 'lucide-react';
+import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban, BookMarked, Lightbulb } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub') => void;
   userRole: string | null;
   onLogin?: () => void;
 }
@@ -78,6 +78,21 @@ const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, user
             >
               <Mic size={22} />
               <span>Spelling Practice</span>
+            </button>
+          )}
+
+          {user && (user.can_access_learning_hub || user.role === 'admin') && (
+            <button
+              onClick={() => onPageChange('learningHub')}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                currentPage === 'learningHub'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              data-source-tsx="Navigation Learning Hub Button|src/components/Navigation/Navigation.tsx"
+            >
+              <Lightbulb size={22} />
+              <span>Integrated Learning Hub</span>
             </button>
           )}
 

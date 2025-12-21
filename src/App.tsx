@@ -28,6 +28,7 @@ import AssignedMemorizations from './components/AssignedMemorizations/AssignedMe
 import AssignmentManagement from './components/AssignmentManagement/AssignmentManagement';
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
+import LearningHub from './components/LearningHub/LearningHub';
 import { Login } from './components/Auth/Login';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
@@ -56,7 +57,8 @@ type AppState =
   | { page: 'assignments' }
   | { page: 'assignmentManagement' }
   | { page: 'proofreadingAssignments' }
-  | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string };
+  | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string }
+  | { page: 'learningHub' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
@@ -146,6 +148,11 @@ function AppContent() {
     setAppState({ page: 'new', step: 'input' });
   }
 
+  // Check permissions for learning hub (admins have automatic access)
+  if (appState.page === 'learningHub' && user && !user.can_access_learning_hub && user.role !== 'admin') {
+    setAppState({ page: 'new', step: 'input' });
+  }
+
   // Ensure students land on saved practices view when accessing spelling
   if (appState.page === 'spelling' && appState.step === 'input' && user && user.role !== 'admin') {
     setAppState({ page: 'spelling', step: 'saved' });
@@ -155,9 +162,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub')) {
       setShowLoginModal(true);
       return;
     }
@@ -174,6 +181,11 @@ function AppContent() {
       return;
     }
 
+    // Check permissions for learning hub (admins have automatic access)
+    if (page === 'learningHub' && !user?.can_access_learning_hub && user?.role !== 'admin') {
+      alert('You do not have permission to access Integrated Learning Hub.');
+      return;
+    }
 
     window.location.hash = '';
 
@@ -207,6 +219,8 @@ function AppContent() {
       setAppState({ page: 'assignmentManagement' });
     } else if (page === 'proofreadingAssignments') {
       setAppState({ page: 'proofreadingAssignments' });
+    } else if (page === 'learningHub') {
+      setAppState({ page: 'learningHub' });
     }
   };
 
@@ -597,6 +611,8 @@ function AppContent() {
         return <AssignmentManagement />;
       case 'proofreadingAssignments':
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
+      case 'learningHub':
+        return <LearningHub />;
       case 'assignedPractice':
         return (
           <MemorizationView
@@ -612,7 +628,7 @@ function AppContent() {
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -624,6 +640,9 @@ function AppContent() {
     }
     if (appState.page === 'spelling') {
       return 'spelling';
+    }
+    if (appState.page === 'learningHub') {
+      return 'learningHub';
     }
     if (appState.page === 'admin') {
       return 'admin';
@@ -647,6 +666,7 @@ function AppContent() {
     if (appState.page === 'practice') return 'practice';
     if (appState.page === 'publicPractice') return 'publicPractice';
     if (appState.page === 'assignedPractice') return 'assignedPractice';
+    if (appState.page === 'learningHub') return 'learningHub';
 
     if (appState.page === 'proofreading') {
       return `proofreading-${appState.step}`;

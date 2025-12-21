@@ -1,0 +1,286 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+interface NotionPage {
+  id: string;
+  properties: Record<string, unknown>;
+  cover?: {
+    type: string;
+    external?: { url: string };
+    file?: { url: string };
+  };
+}
+
+interface LearningActivity {
+  id: string;
+  name: string;
+  thumbnail: string | null;
+  difficulty: string;
+  questionsJson: unknown[];
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const picaSecretKey = Deno.env.get("PICA_SECRET_KEY");
+    const picaNotionConnectionKey = Deno.env.get("PICA_NOTION_CONNECTION_KEY");
+
+    if (!picaSecretKey || !picaNotionConnectionKey) {
+      console.error("Missing Pica environment variables");
+      return new Response(
+        JSON.stringify({
+          error: "Server configuration error: Missing Pica credentials",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    if (path.endsWith("/list-activities")) {
+      const databaseId = "5f5f006e9bbb4683948f7aeb58aae9b1";
+
+      const notionResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/databases/${databaseId}/query`,
+        {
+          method: "POST",
+          headers: {
+            "x-pica-secret": picaSecretKey,
+            "x-pica-connection-key": picaNotionConnectionKey,
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+          },
+          body: JSON.stringify({
+            page_size: 100,
+          }),
+        }
+      );
+
+      if (!notionResponse.ok) {
+        const errorText = await notionResponse.text();
+        console.error("Notion API error:", errorText);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch activities from Notion", details: errorText }),
+          {
+            status: notionResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const notionData = await notionResponse.json();
+      const activities: LearningActivity[] = [];
+
+      for (const page of notionData.results || []) {
+        const notionPage = page as NotionPage;
+        const props = notionPage.properties;
+
+        let name = "Untitled";
+        const nameProperty = props["Name"] || props["name"] || props["Title"] || props["title"];
+        if (nameProperty) {
+          const nameProp = nameProperty as { type: string; title?: Array<{ plain_text: string }>; rich_text?: Array<{ plain_text: string }> };
+          if (nameProp.type === "title" && nameProp.title?.[0]) {
+            name = nameProp.title[0].plain_text;
+          } else if (nameProp.type === "rich_text" && nameProp.rich_text?.[0]) {
+            name = nameProp.rich_text[0].plain_text;
+          }
+        }
+
+        let difficulty = "Medium";
+        const difficultyProperty = props["Difficulty"] || props["difficulty"];
+        if (difficultyProperty) {
+          const diffProp = difficultyProperty as { type: string; select?: { name: string }; rich_text?: Array<{ plain_text: string }> };
+          if (diffProp.type === "select" && diffProp.select) {
+            difficulty = diffProp.select.name;
+          } else if (diffProp.type === "rich_text" && diffProp.rich_text?.[0]) {
+            difficulty = diffProp.rich_text[0].plain_text;
+          }
+        }
+
+        let questionsJson: unknown[] = [];
+        const questionsProperty = props["Questions"] || props["questions"] || props["Questions JSON"] || props["questions_json"];
+        if (questionsProperty) {
+          const qProp = questionsProperty as { type: string; rich_text?: Array<{ plain_text: string }> };
+          if (qProp.type === "rich_text" && qProp.rich_text?.[0]) {
+            try {
+              const parsed = JSON.parse(qProp.rich_text[0].plain_text);
+              questionsJson = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              questionsJson = [];
+            }
+          }
+        }
+
+        let thumbnail: string | null = null;
+        if (notionPage.cover) {
+          if (notionPage.cover.external?.url) {
+            thumbnail = notionPage.cover.external.url;
+          } else if (notionPage.cover.file?.url) {
+            thumbnail = notionPage.cover.file.url;
+          }
+        }
+        const thumbnailProperty = props["Thumbnail"] || props["thumbnail"] || props["Image"] || props["image"];
+        if (!thumbnail && thumbnailProperty) {
+          const thumbProp = thumbnailProperty as { type: string; url?: string; files?: Array<{ file?: { url: string }; external?: { url: string } }> };
+          if (thumbProp.type === "url" && thumbProp.url) {
+            thumbnail = thumbProp.url;
+          } else if (thumbProp.type === "files" && thumbProp.files?.[0]) {
+            const file = thumbProp.files[0];
+            thumbnail = file.file?.url || file.external?.url || null;
+          }
+        }
+
+        activities.push({
+          id: notionPage.id,
+          name,
+          thumbnail,
+          difficulty,
+          questionsJson,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ activities }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/get-activity")) {
+      const { activityId } = await req.json();
+
+      if (!activityId) {
+        return new Response(
+          JSON.stringify({ error: "Activity ID is required" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const notionResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/pages/${activityId}`,
+        {
+          method: "GET",
+          headers: {
+            "x-pica-secret": picaSecretKey,
+            "x-pica-connection-key": picaNotionConnectionKey,
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+          },
+        }
+      );
+
+      if (!notionResponse.ok) {
+        const errorText = await notionResponse.text();
+        console.error("Notion API error:", errorText);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch activity from Notion" }),
+          {
+            status: notionResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const notionPage = await notionResponse.json() as NotionPage;
+      const props = notionPage.properties;
+
+      let name = "Untitled";
+      const nameProperty = props["Name"] || props["name"] || props["Title"] || props["title"];
+      if (nameProperty) {
+        const nameProp = nameProperty as { type: string; title?: Array<{ plain_text: string }>; rich_text?: Array<{ plain_text: string }> };
+        if (nameProp.type === "title" && nameProp.title?.[0]) {
+          name = nameProp.title[0].plain_text;
+        } else if (nameProp.type === "rich_text" && nameProp.rich_text?.[0]) {
+          name = nameProp.rich_text[0].plain_text;
+        }
+      }
+
+      let difficulty = "Medium";
+      const difficultyProperty = props["Difficulty"] || props["difficulty"];
+      if (difficultyProperty) {
+        const diffProp = difficultyProperty as { type: string; select?: { name: string }; rich_text?: Array<{ plain_text: string }> };
+        if (diffProp.type === "select" && diffProp.select) {
+          difficulty = diffProp.select.name;
+        } else if (diffProp.type === "rich_text" && diffProp.rich_text?.[0]) {
+          difficulty = diffProp.rich_text[0].plain_text;
+        }
+      }
+
+      let questionsJson: unknown[] = [];
+      const questionsProperty = props["Questions"] || props["questions"] || props["Questions JSON"] || props["questions_json"];
+      if (questionsProperty) {
+        const qProp = questionsProperty as { type: string; rich_text?: Array<{ plain_text: string }> };
+        if (qProp.type === "rich_text" && qProp.rich_text?.[0]) {
+          try {
+            const parsed = JSON.parse(qProp.rich_text[0].plain_text);
+            questionsJson = Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            questionsJson = [];
+          }
+        }
+      }
+
+      let thumbnail: string | null = null;
+      if (notionPage.cover) {
+        if (notionPage.cover.external?.url) {
+          thumbnail = notionPage.cover.external.url;
+        } else if (notionPage.cover.file?.url) {
+          thumbnail = notionPage.cover.file.url;
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          activity: {
+            id: notionPage.id,
+            name,
+            thumbnail,
+            difficulty,
+            questionsJson,
+          },
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ error: "Not found" }),
+      {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (error) {
+    console.error("Error in pica-notion function:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
