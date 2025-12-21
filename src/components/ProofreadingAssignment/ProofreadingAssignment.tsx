@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Users, CheckCircle, XCircle, BookOpen, Plus, Play } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, Users, CheckCircle, BookOpen, Plus, Play } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ProofreadingPractice } from '../../types';
 import ProofreadingPracticeComponent from '../ProofreadingPractice/ProofreadingPractice';
+import DiagnosticPanel from '../DiagnosticPanel/DiagnosticPanel';
+import { DiagnosticCheck, ErrorDetails, translateError, runPreFlightChecks } from '../../utils/diagnosticUtils';
 
 interface User {
   id: string;
@@ -26,6 +28,17 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [view, setView] = useState<'assign' | 'preview'>('assign');
+
+  const [diagnosticEnabled, setDiagnosticEnabled] = useState(false);
+  const [diagnosticChecks, setDiagnosticChecks] = useState<DiagnosticCheck[]>([
+    { id: 'auth', name: 'Authentication Valid', status: 'pending' },
+    { id: 'admin', name: 'User Has Admin Role', status: 'pending' },
+    { id: 'practice', name: 'Practice Exists', status: 'pending' },
+    { id: 'users', name: 'Selected Users Valid', status: 'pending' },
+    { id: 'rls', name: 'Insert Permission', status: 'pending' },
+  ]);
+  const [isRunningChecks, setIsRunningChecks] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -95,6 +108,30 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
     }
   };
 
+  const runDiagnosticChecks = useCallback(async () => {
+    if (!diagnosticEnabled) return;
+
+    setIsRunningChecks(true);
+    setDiagnosticChecks(prev => prev.map(c => ({ ...c, status: 'running' as const })));
+
+    const selectedIds = Array.from(selectedUsers);
+    const results = await runPreFlightChecks(
+      currentUser?.id,
+      practice.id,
+      selectedIds,
+      'proofreading_practice_assignments'
+    );
+
+    setDiagnosticChecks(results);
+    setIsRunningChecks(false);
+  }, [diagnosticEnabled, currentUser?.id, practice.id, selectedUsers]);
+
+  useEffect(() => {
+    if (diagnosticEnabled && !loading) {
+      runDiagnosticChecks();
+    }
+  }, [diagnosticEnabled, loading, runDiagnosticChecks]);
+
   const handleBulkAssign = async () => {
     if (selectedUsers.size === 0) return;
 
@@ -113,35 +150,73 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
       if (!confirmed) return;
     }
 
+    const insertData = usersToAssign.map(userId => ({
+      practice_id: practice.id,
+      user_id: userId,
+      assigned_by: currentUser?.id,
+    }));
+
     try {
       setAssigning(true);
       setError(null);
       setSuccess(null);
+      setErrorDetails(null);
 
-      if (!currentUser?.id) throw new Error('User not authenticated');
-
-      const insertData = usersToAssign.map(userId => ({
-        practice_id: practice.id,
-        user_id: userId,
-        assigned_by: currentUser.id,
-      }));
+      if (!currentUser?.id) {
+        const errorDetail = translateError(
+          new Error('User not authenticated'),
+          'Pre-assignment validation',
+          { practice_id: practice.id, user_count: usersToAssign.length }
+        );
+        setErrorDetails(errorDetail);
+        setError(`${errorDetail.errorMessage}`);
+        if (diagnosticEnabled) runDiagnosticChecks();
+        return;
+      }
 
       const { error: insertError } = await supabase
         .from('proofreading_practice_assignments')
         .insert(insertData);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        const errorDetail = translateError(
+          insertError,
+          'Database insert to proofreading_practice_assignments',
+          {
+            practice_id: practice.id,
+            practice_title: practice.title,
+            users_to_assign: usersToAssign.length,
+            assigned_by: currentUser.id,
+          }
+        );
+        setErrorDetails(errorDetail);
+        setError(`${errorDetail.errorMessage}`);
+        if (diagnosticEnabled) runDiagnosticChecks();
+        return;
+      }
 
       const newAssignments = new Set(assignments);
       usersToAssign.forEach(userId => newAssignments.add(userId));
       setAssignments(newAssignments);
       setSelectedUsers(new Set());
       setSuccess(`Successfully assigned practice to ${usersToAssign.length} student${usersToAssign.length !== 1 ? 's' : ''}`);
+      setErrorDetails(null);
 
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       console.error('Error assigning practice:', err);
-      setError('Failed to assign practice to selected students');
+      const errorDetail = translateError(
+        err,
+        'Unexpected error during assignment',
+        {
+          practice_id: practice.id,
+          practice_title: practice.title,
+          users_to_assign: usersToAssign.length,
+        }
+      );
+      setErrorDetails(errorDetail);
+      setError(`${errorDetail.errorMessage}`);
+      if (diagnosticEnabled) runDiagnosticChecks();
     } finally {
       setAssigning(false);
     }
@@ -326,6 +401,15 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
           </div>
         </div>
       </div>
+
+      <DiagnosticPanel
+        checks={diagnosticChecks}
+        errorDetails={errorDetails}
+        isRunningChecks={isRunningChecks}
+        onRunChecks={runDiagnosticChecks}
+        isEnabled={diagnosticEnabled}
+        onToggleEnabled={setDiagnosticEnabled}
+      />
     </div>
   );
 };
