@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Eye, EyeOff, Pin, X, Database, Zap, MousePointer, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { getComponentDebugInfo, ComponentDebugInfo } from './componentRegistry';
 
@@ -18,6 +18,34 @@ interface ElementStatus {
   dataLoaded: boolean;
 }
 
+interface ButtonPosition {
+  x: number;
+  y: number;
+}
+
+const POSITION_STORAGE_KEY = 'inspector_button_position';
+const DRAG_THRESHOLD = 5;
+const BUTTON_SIZE = { width: 44, height: 40 };
+
+const getDefaultPosition = (): ButtonPosition => ({
+  x: window.innerWidth - BUTTON_SIZE.width - 16,
+  y: 16
+});
+
+const loadSavedPosition = (): ButtonPosition => {
+  try {
+    const saved = localStorage.getItem(POSITION_STORAGE_KEY);
+    if (saved) {
+      const pos = JSON.parse(saved);
+      return {
+        x: Math.min(Math.max(0, pos.x), window.innerWidth - BUTTON_SIZE.width),
+        y: Math.min(Math.max(0, pos.y), window.innerHeight - BUTTON_SIZE.height)
+      };
+    }
+  } catch {}
+  return getDefaultPosition();
+};
+
 const SourceInspector: React.FC = () => {
   const [isDetectionMode, setIsDetectionMode] = useState(() => {
     const saved = localStorage.getItem('detectionMode');
@@ -25,6 +53,92 @@ const SourceInspector: React.FC = () => {
   });
   const [hoveredSource, setHoveredSource] = useState<SourceInfo | null>(null);
   const [pinnedSource, setPinnedSource] = useState<SourceInfo | null>(null);
+  const [buttonPosition, setButtonPosition] = useState<ButtonPosition>(loadSavedPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number; buttonX: number; buttonY: number } | null>(null);
+  const hasDraggedRef = useRef(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setButtonPosition(prev => ({
+        x: Math.min(prev.x, window.innerWidth - BUTTON_SIZE.width),
+        y: Math.min(prev.y, window.innerHeight - BUTTON_SIZE.height)
+      }));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const constrainPosition = useCallback((x: number, y: number): ButtonPosition => ({
+    x: Math.min(Math.max(0, x), window.innerWidth - BUTTON_SIZE.width),
+    y: Math.min(Math.max(0, y), window.innerHeight - BUTTON_SIZE.height)
+  }), []);
+
+  const handleDragStart = useCallback((clientX: number, clientY: number) => {
+    dragStartRef.current = {
+      x: clientX,
+      y: clientY,
+      buttonX: buttonPosition.x,
+      buttonY: buttonPosition.y
+    };
+    hasDraggedRef.current = false;
+    setIsDragging(true);
+  }, [buttonPosition]);
+
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    if (!dragStartRef.current) return;
+    const deltaX = clientX - dragStartRef.current.x;
+    const deltaY = clientY - dragStartRef.current.y;
+    if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
+      hasDraggedRef.current = true;
+    }
+    const newPos = constrainPosition(
+      dragStartRef.current.buttonX + deltaX,
+      dragStartRef.current.buttonY + deltaY
+    );
+    setButtonPosition(newPos);
+  }, [constrainPosition]);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragStartRef.current) {
+      localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(buttonPosition));
+    }
+    dragStartRef.current = null;
+    setIsDragging(false);
+  }, [buttonPosition]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleDragMove(e.clientX, e.clientY);
+    };
+    const handleMouseUp = () => handleDragEnd();
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const handleTouchEnd = () => handleDragEnd();
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  const handleButtonClick = () => {
+    if (!hasDraggedRef.current) {
+      const newValue = !isDetectionMode;
+      setIsDetectionMode(newValue);
+      localStorage.setItem('detectionMode', String(newValue));
+    }
+  };
 
   const toggleDetectionMode = () => {
     const newValue = !isDetectionMode;
@@ -227,14 +341,31 @@ const SourceInspector: React.FC = () => {
   return (
     <>
       <button
-        onClick={toggleDetectionMode}
-        className={`fixed top-4 right-4 z-[9999] flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all shadow-lg ${
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleDragStart(e.clientX, e.clientY);
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length === 1) {
+            handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }}
+        onClick={handleButtonClick}
+        className={`fixed z-[9999] flex items-center space-x-2 px-3 py-2 rounded-lg font-medium shadow-lg select-none ${
+          isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
+        } ${
           isDetectionMode
-            ? 'bg-orange-600 text-white hover:bg-orange-700'
-            : 'bg-gray-700 text-white hover:bg-gray-600 opacity-70 hover:opacity-100'
+            ? 'bg-orange-600 text-white'
+            : 'bg-gray-700 text-white opacity-70 hover:opacity-100'
         }`}
-        style={{ fontFamily: 'Times New Roman, serif' }}
-        title={isDetectionMode ? 'Exit Detection Mode' : 'Enter Detection Mode'}
+        style={{
+          left: buttonPosition.x,
+          top: buttonPosition.y,
+          touchAction: 'none',
+          fontFamily: 'Times New Roman, serif',
+          transition: isDragging ? 'none' : 'transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease'
+        }}
+        title={isDetectionMode ? 'Drag to move, click to exit Detection Mode' : 'Drag to move, click to enter Detection Mode'}
       >
         {isDetectionMode ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
