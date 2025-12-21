@@ -129,11 +129,12 @@ Deno.serve(async (req: Request) => {
       const response3 = await fetch(requestUrl3, {
         method: "POST",
         headers: {
-          "x-pica-secret": picaSecretKey,
-          "x-pica-connection-key": picaNotionConnectionKey,
-          "Content-Type": "application/json",
-          "Notion-Version": "2022-06-28",
-        },
+        "x-pica-secret": picaSecretKey,
+        "x-pica-connection-key": picaNotionConnectionKey,
+        "x-pica-action-id": dataSourceQueryAction?.key ||      "datasourcepages_query",
+        "Content-Type": "application/json",
+        "Notion-Version": "2025-09-03",  // 
+      },
         body: JSON.stringify({ page_size: 100 }),
       });
       const text3 = await response3.text();
