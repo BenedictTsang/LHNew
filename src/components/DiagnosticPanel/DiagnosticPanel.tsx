@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Bug, X, ChevronRight, CheckCircle, XCircle, AlertCircle, Loader2, Copy, Check, RefreshCw, Settings, RotateCcw } from 'lucide-react';
 import { DiagnosticCheck, ErrorDetails, formatErrorForCopy } from '../../utils/diagnosticUtils';
 
 interface DiagnosticPanelProps {
@@ -11,7 +11,34 @@ interface DiagnosticPanelProps {
   onToggleEnabled: (enabled: boolean) => void;
 }
 
+interface ButtonPosition {
+  x: number;
+  y: number;
+}
+
 const STORAGE_KEY = 'diagnostic_mode_enabled';
+const POSITION_STORAGE_KEY = 'diagnostic_button_position';
+const DRAG_THRESHOLD = 5;
+const BUTTON_SIZE = { width: 72, height: 44 };
+
+const getDefaultPosition = (): ButtonPosition => ({
+  x: window.innerWidth - BUTTON_SIZE.width,
+  y: Math.round(window.innerHeight / 2 - BUTTON_SIZE.height / 2)
+});
+
+const loadSavedPosition = (): ButtonPosition => {
+  try {
+    const saved = localStorage.getItem(POSITION_STORAGE_KEY);
+    if (saved) {
+      const pos = JSON.parse(saved);
+      return {
+        x: Math.min(Math.max(0, pos.x), window.innerWidth - BUTTON_SIZE.width),
+        y: Math.min(Math.max(0, pos.y), window.innerHeight - BUTTON_SIZE.height)
+      };
+    }
+  } catch {}
+  return getDefaultPosition();
+};
 
 export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
   checks,
@@ -23,6 +50,10 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [buttonPosition, setButtonPosition] = useState<ButtonPosition>(loadSavedPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number; buttonX: number; buttonY: number } | null>(null);
+  const hasDraggedRef = useRef(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,6 +61,92 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
       onToggleEnabled(saved === 'true');
     }
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setButtonPosition(prev => ({
+        x: Math.min(prev.x, window.innerWidth - BUTTON_SIZE.width),
+        y: Math.min(prev.y, window.innerHeight - BUTTON_SIZE.height)
+      }));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const constrainPosition = useCallback((x: number, y: number): ButtonPosition => ({
+    x: Math.min(Math.max(0, x), window.innerWidth - BUTTON_SIZE.width),
+    y: Math.min(Math.max(0, y), window.innerHeight - BUTTON_SIZE.height)
+  }), []);
+
+  const handleDragStart = useCallback((clientX: number, clientY: number) => {
+    dragStartRef.current = {
+      x: clientX,
+      y: clientY,
+      buttonX: buttonPosition.x,
+      buttonY: buttonPosition.y
+    };
+    hasDraggedRef.current = false;
+    setIsDragging(true);
+  }, [buttonPosition]);
+
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    if (!dragStartRef.current) return;
+    const deltaX = clientX - dragStartRef.current.x;
+    const deltaY = clientY - dragStartRef.current.y;
+    if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
+      hasDraggedRef.current = true;
+    }
+    const newPos = constrainPosition(
+      dragStartRef.current.buttonX + deltaX,
+      dragStartRef.current.buttonY + deltaY
+    );
+    setButtonPosition(newPos);
+  }, [constrainPosition]);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragStartRef.current) {
+      localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(buttonPosition));
+    }
+    dragStartRef.current = null;
+    setIsDragging(false);
+  }, [buttonPosition]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleDragMove(e.clientX, e.clientY);
+    };
+    const handleMouseUp = () => handleDragEnd();
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const handleTouchEnd = () => handleDragEnd();
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  const handleButtonClick = () => {
+    if (!hasDraggedRef.current) {
+      setIsOpen(true);
+    }
+  };
+
+  const handleResetPosition = () => {
+    const defaultPos = getDefaultPosition();
+    setButtonPosition(defaultPos);
+    localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(defaultPos));
+  };
 
   const handleToggleEnabled = (enabled: boolean) => {
     localStorage.setItem(STORAGE_KEY, String(enabled));
@@ -83,8 +200,19 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
   if (!isOpen) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center gap-2 px-3 py-3 rounded-l-lg shadow-lg transition-all hover:pr-4 ${
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleDragStart(e.clientX, e.clientY);
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length === 1) {
+            handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }}
+        onClick={handleButtonClick}
+        className={`fixed z-50 flex items-center gap-2 px-3 py-3 rounded-lg shadow-lg select-none ${
+          isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'
+        } ${
           errorDetails
             ? 'bg-red-600 text-white'
             : hasFailures
@@ -95,7 +223,13 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
             ? 'bg-green-600 text-white'
             : 'bg-gray-700 text-white'
         }`}
-        title="Open Diagnostic Panel"
+        style={{
+          left: buttonPosition.x,
+          top: buttonPosition.y,
+          touchAction: 'none',
+          transition: isDragging ? 'none' : 'transform 0.15s ease, box-shadow 0.15s ease'
+        }}
+        title="Drag to move, click to open Diagnostic Panel"
       >
         <Bug size={20} />
         <ChevronRight size={16} className="rotate-180" />
@@ -120,12 +254,21 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
             <Bug size={20} className="text-gray-700" />
             <h2 className="font-semibold text-gray-800">Diagnostics</h2>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
-          >
-            <X size={20} className="text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleResetPosition}
+              className="p-1 hover:bg-gray-200 rounded transition-colors"
+              title="Reset button position"
+            >
+              <RotateCcw size={18} className="text-gray-500" />
+            </button>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-1 hover:bg-gray-200 rounded transition-colors"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
