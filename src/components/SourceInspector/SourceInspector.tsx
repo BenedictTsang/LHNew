@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Pin, X } from 'lucide-react';
+import { Eye, EyeOff, Pin, X, Database, Zap, MousePointer, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { getComponentDebugInfo, ComponentDebugInfo } from './componentRegistry';
 
 interface SourceInfo {
   component: string;
   file: string;
   x: number;
   y: number;
+  debugInfo: ComponentDebugInfo | null;
+  elementStatus: ElementStatus | null;
+}
+
+interface ElementStatus {
+  isLoading: boolean;
+  hasError: boolean;
+  errorMessage: string | null;
+  dataLoaded: boolean;
 }
 
 const SourceInspector: React.FC = () => {
@@ -22,6 +32,22 @@ const SourceInspector: React.FC = () => {
     localStorage.setItem('detectionMode', String(newValue));
   };
 
+  const detectElementStatus = (element: HTMLElement): ElementStatus => {
+    const container = element.closest('[data-source-tsx]') || element;
+    const hasLoadingText = container.textContent?.toLowerCase().includes('loading');
+    const hasErrorText = container.textContent?.toLowerCase().includes('error') ||
+                         container.textContent?.toLowerCase().includes('failed');
+    const errorElement = container.querySelector('.text-red-600, .text-red-700, .bg-red-50');
+    const errorMessage = errorElement?.textContent || null;
+
+    return {
+      isLoading: hasLoadingText || false,
+      hasError: hasErrorText || !!errorElement,
+      errorMessage: errorMessage,
+      dataLoaded: !hasLoadingText,
+    };
+  };
+
   useEffect(() => {
     if (!isDetectionMode) {
       setHoveredSource(null);
@@ -30,20 +56,25 @@ const SourceInspector: React.FC = () => {
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (pinnedSource) return; // Don't update hover when pinned
+      if (pinnedSource) return;
 
       const target = e.target as HTMLElement;
       const sourceElement = target.closest('[data-source-tsx]') as HTMLElement;
-      
+
       if (sourceElement) {
         const sourceData = sourceElement.getAttribute('data-source-tsx');
         if (sourceData) {
           const [component, file] = sourceData.split('|');
+          const debugInfo = getComponentDebugInfo(component);
+          const elementStatus = detectElementStatus(sourceElement);
+
           setHoveredSource({
             component: component || 'Unknown Component',
             file: file || 'Unknown File',
             x: e.clientX,
             y: e.clientY,
+            debugInfo,
+            elementStatus,
           });
         }
       } else {
@@ -56,7 +87,7 @@ const SourceInspector: React.FC = () => {
 
       e.preventDefault();
       e.stopPropagation();
-      
+
       setPinnedSource({
         ...hoveredSource,
         x: e.clientX,
@@ -76,9 +107,125 @@ const SourceInspector: React.FC = () => {
 
   const currentSource = pinnedSource || hoveredSource;
 
+  const renderDebugInfo = (info: ComponentDebugInfo) => {
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-600 space-y-3">
+        {info.description && (
+          <div className="text-xs text-gray-300 italic mb-2">
+            {info.description}
+          </div>
+        )}
+
+        {info.tables && (info.tables.reads?.length || info.tables.writes?.length) && (
+          <div>
+            <div className="flex items-center space-x-1 text-teal-400 text-xs font-semibold mb-1">
+              <Database size={12} />
+              <span>DATABASE TABLES</span>
+            </div>
+            {info.tables.reads && info.tables.reads.length > 0 && (
+              <div className="ml-4 text-xs">
+                <span className="text-gray-400">Reads:</span>
+                <span className="ml-1 text-teal-300">{info.tables.reads.join(', ')}</span>
+              </div>
+            )}
+            {info.tables.writes && info.tables.writes.length > 0 && (
+              <div className="ml-4 text-xs">
+                <span className="text-gray-400">Writes:</span>
+                <span className="ml-1 text-yellow-300">{info.tables.writes.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {info.rpcFunctions && info.rpcFunctions.length > 0 && (
+          <div>
+            <div className="flex items-center space-x-1 text-blue-400 text-xs font-semibold mb-1">
+              <Zap size={12} />
+              <span>DATABASE FUNCTIONS</span>
+            </div>
+            <div className="ml-4 text-xs text-blue-300">
+              {info.rpcFunctions.map((fn, i) => (
+                <div key={i} className="flex items-center space-x-1">
+                  <span className="text-gray-500">•</span>
+                  <span>{fn}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {info.edgeFunctions && info.edgeFunctions.length > 0 && (
+          <div>
+            <div className="flex items-center space-x-1 text-purple-400 text-xs font-semibold mb-1">
+              <FileText size={12} />
+              <span>EDGE FUNCTIONS (API)</span>
+            </div>
+            <div className="ml-4 text-xs text-purple-300">
+              {info.edgeFunctions.map((fn, i) => (
+                <div key={i} className="flex items-center space-x-1">
+                  <span className="text-gray-500">•</span>
+                  <span>/functions/v1/{fn}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {info.actions && info.actions.length > 0 && (
+          <div>
+            <div className="flex items-center space-x-1 text-green-400 text-xs font-semibold mb-1">
+              <MousePointer size={12} />
+              <span>AVAILABLE ACTIONS</span>
+            </div>
+            <div className="ml-4 text-xs text-green-300">
+              {info.actions.map((action, i) => (
+                <div key={i} className="flex items-center space-x-1">
+                  <span className="text-gray-500">•</span>
+                  <span>{action}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStatus = (status: ElementStatus) => {
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-600">
+        <div className="text-xs font-semibold mb-2 text-gray-300">CURRENT STATUS</div>
+        <div className="space-y-1">
+          {status.isLoading && (
+            <div className="flex items-center space-x-2 text-yellow-400 text-xs">
+              <Loader size={12} className="animate-spin" />
+              <span>Loading data...</span>
+            </div>
+          )}
+          {status.hasError && (
+            <div className="flex items-center space-x-2 text-red-400 text-xs">
+              <AlertCircle size={12} />
+              <span>Error detected</span>
+            </div>
+          )}
+          {status.errorMessage && (
+            <div className="ml-4 text-xs text-red-300 bg-red-900/30 px-2 py-1 rounded">
+              {status.errorMessage.slice(0, 100)}
+            </div>
+          )}
+          {!status.isLoading && !status.hasError && (
+            <div className="flex items-center space-x-2 text-green-400 text-xs">
+              <CheckCircle size={12} />
+              <span>Ready</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
-      {/* Detection Mode Toggle */}
       <button
         onClick={toggleDetectionMode}
         className={`fixed top-4 right-4 z-[9999] flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all shadow-lg ${
@@ -92,18 +239,19 @@ const SourceInspector: React.FC = () => {
         {isDetectionMode ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
 
-      {/* Source Info Floating Window */}
       {currentSource && (
         <div
-          className="fixed z-[9998] bg-black bg-opacity-90 text-white p-4 rounded-lg shadow-xl max-w-sm pointer-events-none"
+          className="fixed z-[9998] bg-gray-900 bg-opacity-95 text-white p-4 rounded-lg shadow-xl max-w-md pointer-events-none"
           style={{
-            left: Math.min(currentSource.x + 10, window.innerWidth - 300),
+            left: Math.min(currentSource.x + 10, window.innerWidth - 420),
             top: Math.max(currentSource.y - 80, 10),
             fontFamily: 'Times New Roman, serif',
+            maxHeight: 'calc(100vh - 100px)',
+            overflowY: 'auto',
           }}
         >
           <div className="flex items-start justify-between mb-2">
-            <h3 className="font-bold text-sm text-orange-400">Component Source</h3>
+            <h3 className="font-bold text-sm text-orange-400">Debug Inspector</h3>
             {pinnedSource && (
               <button
                 onClick={() => setPinnedSource(null)}
@@ -113,20 +261,30 @@ const SourceInspector: React.FC = () => {
               </button>
             )}
           </div>
-          
+
           <div className="space-y-1 text-xs">
             <div>
               <span className="text-gray-400">Component:</span>
-              <span className="ml-2 text-blue-300">{currentSource.component}</span>
+              <span className="ml-2 text-blue-300 font-medium">{currentSource.component}</span>
             </div>
             <div>
               <span className="text-gray-400">File:</span>
-              <span className="ml-2 text-green-300">{currentSource.file}</span>
+              <span className="ml-2 text-green-300 text-[10px]">{currentSource.file}</span>
             </div>
           </div>
 
+          {currentSource.elementStatus && renderStatus(currentSource.elementStatus)}
+
+          {currentSource.debugInfo && renderDebugInfo(currentSource.debugInfo)}
+
+          {!currentSource.debugInfo && (
+            <div className="mt-3 pt-3 border-t border-gray-600 text-xs text-gray-400 italic">
+              No additional debug info registered for this component.
+            </div>
+          )}
+
           {pinnedSource && (
-            <div className="flex items-center mt-2 text-xs text-gray-400">
+            <div className="flex items-center mt-3 pt-2 border-t border-gray-700 text-xs text-gray-400">
               <Pin size={12} className="mr-1" />
               <span>Pinned - Click X to unpin</span>
             </div>
@@ -134,14 +292,14 @@ const SourceInspector: React.FC = () => {
         </div>
       )}
 
-      {/* Detection Mode Overlay */}
       {isDetectionMode && (
         <div className="fixed inset-0 z-[9997] pointer-events-none">
-          <div className="absolute top-20 left-4 bg-orange-600 text-white px-3 py-2 rounded-lg text-sm shadow-lg">
-            <div className="font-bold mb-1">Detection Mode Active</div>
-            <div className="text-xs">
-              • Hover over components to see source info<br/>
-              • Click to pin the info window
+          <div className="absolute top-20 left-4 bg-orange-600 text-white px-3 py-2 rounded-lg text-sm shadow-lg max-w-xs">
+            <div className="font-bold mb-1">Debug Mode Active</div>
+            <div className="text-xs space-y-1">
+              <div>• Hover over components to see debug info</div>
+              <div>• Click to pin the info window</div>
+              <div>• View database tables, functions, and status</div>
             </div>
           </div>
         </div>

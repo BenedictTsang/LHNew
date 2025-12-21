@@ -87,6 +87,7 @@ const AssignedProofreadingPractices: React.FC<AssignedProofreadingPracticesProps
     <div
       className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
       style={{ fontFamily: 'Times New Roman, serif' }}
+      data-source-tsx="AssignedProofreadingPractices|src/components/AssignedProofreadingPractices/AssignedProofreadingPractices.tsx"
     >
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">

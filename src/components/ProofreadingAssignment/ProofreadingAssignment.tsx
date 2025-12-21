@@ -171,7 +171,11 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8" style={{ fontFamily: 'Times New Roman, serif' }}>
+    <div
+      className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-8"
+      style={{ fontFamily: 'Times New Roman, serif' }}
+      data-source-tsx="ProofreadingAssignment|src/components/ProofreadingAssignment/ProofreadingAssignment.tsx"
+    >
       <div className="max-w-4xl mx-auto">
         <div className="fixed top-4 left-0 right-0 z-40 flex justify-center gap-4 px-8">
           <button
@@ -292,6 +296,7 @@ export const ProofreadingAssignment: React.FC<ProofreadingAssignmentProps> = ({ 
                       onClick={handleBulkAssign}
                       disabled={assigning}
                       className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      data-source-tsx="ProofreadingAssignment Assign Button|src/components/ProofreadingAssignment/ProofreadingAssignment.tsx"
                     >
                       {assigning ? (
                         <>
