@@ -151,48 +151,78 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-        if (path.endsWith("/list-activities")) {
-      const databaseId = "a35db621-f94e-4a0b-9f53-6d895d6972d6";
-      
-      // FETCH ACTIONS FIRST
-      const actionsResp = await fetch("https://api.picaos.com/v1/available-actions/notion?page=1&limit=50", {
-        headers: { "x-pica-secret": picaSecretKey }
-      });
-      const actionsData = await actionsResp.json();
-      const dataSourceQueryAction = actionsData.rows?.find(a => a.key?.includes("datasourcepages"));
+         if (path.endsWith('list-activities')) {
+      const databaseId = 'a35db621-f94e-4a0b-9f53-6d895d6972d6'; // Your Database ID
 
-      const notionResponse = await fetch(
-        `https://api.picaos.com/v1/passthrough/data_sources/${databaseId}/query`,
+      // 1. Fetch available actions to get the correct paths
+      const actionsResp = await fetch(
+        `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
+        { headers: { 'x-pica-secret': picaSecretKey } }
+      );
+      const actionsData = await actionsResp.json();
+      
+      // Find the actions we need
+      const retrieveDatabaseAction = actionsData.rows?.find((a: any) => 
+        a.key?.includes('retrievedatabase')
+      );
+      const queryDataSourceAction = actionsData.rows?.find((a: any) => 
+        a.key?.includes('querydatasourcepages')
+      );
+
+      // 2. FIRST: Retrieve the Database Metadata to find the Data Source ID
+      const dbResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/databases/${databaseId}`,
         {
-          method: "POST",
+          method: 'GET',
           headers: {
-            "x-pica-secret": picaSecretKey,
-            "x-pica-connection-key": picaNotionConnectionKey,
-            "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
-            "Content-Type": "application/json",
-            "Notion-Version": "2025-09-03"
+            'x-pica-secret': picaSecretKey,
+            'x-pica-connection-key': picaNotionConnectionKey,
+            'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
+            'Content-Type': 'application/json',
+            'Notion-Version': '2025-09-03',
           },
-          body: JSON.stringify({
-          filter: {
-          property: "Status", 
-          select: { equals: "Published" }
-            },
-            page_size: 100,
-          }),
         }
       );
 
-      if (!notionResponse.ok) {
-        const errorText = await notionResponse.text();
-        console.error("Notion API error:", errorText);
+      if (!dbResponse.ok) {
+        const errorText = await dbResponse.text();
+        console.error('Failed to retrieve database metadata:', errorText);
         return new Response(
-          JSON.stringify({ error: "Failed to fetch activities from Notion", details: errorText }),
-          {
-            status: notionResponse.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+            JSON.stringify({ error: 'Failed to find database', details: errorText }),
+            { status: dbResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      const dbData = await dbResponse.json();
+      // EXTRACT THE REAL DATA SOURCE ID
+      // Notion databases now have a 'data_sources' array. We usually want the first one.
+      const realDataSourceId = dbData.data_sources?.[0]?.id;
+
+      if (!realDataSourceId) {
+         return new Response(
+            JSON.stringify({ error: 'Database has no data source', details: 'The 2025-09-03 API requires a valid data source.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 3. NOW: Query the Data Source using the ID we just found
+      const notionResponse = await fetch(
+        `https://api.picaos.com/v1/passthrough/data_sources/${realDataSourceId}/query`,
+        {
+          method: 'POST',
+          headers: {
+            'x-pica-secret': picaSecretKey,
+            'x-pica-connection-key': picaNotionConnectionKey,
+            'x-pica-action-id': queryDataSourceAction?.key || 'datasourcepagesquery',
+            'Content-Type': 'application/json',
+            'Notion-Version': '2025-09-03',
+          },
+          body: JSON.stringify({
+             // REMOVED THE STATUS FILTER to avoid the other error
+             page_size: 100, 
+          }),
+        }
+      );
 
       const notionData = await notionResponse.json();
       const activities: LearningActivity[] = [];
