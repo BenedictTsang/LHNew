@@ -316,7 +316,8 @@ Deno.serve(async (req: Request) => {
           }
         );
       }
-
+      // FIX: Use the correct Action ID for "Retrieve Page"
+      // We don't need to fetch the dynamic list because this ID is standard across integrations.
       const notionResponse = await fetch(
         `https://api.picaos.com/v1/passthrough/pages/${activityId}`,
         {
