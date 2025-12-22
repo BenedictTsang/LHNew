@@ -152,34 +152,34 @@ Deno.serve(async (req: Request) => {
     }
 
          if (path.endsWith('list-activities')) {
-      const databaseId = 'a35db621-f94e-4a0b-9f53-6d895d6972d6'; // Your Database ID
+              const databaseId = 'a35db621-f94e-4a0b-9f53-6d895d6972d6'; // Your Database ID
 
-      // 1. Fetch available actions to get the correct paths
-      const actionsResp = await fetch(
-        `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
-        { headers: { 'x-pica-secret': picaSecretKey } }
-      );
-      const actionsData = await actionsResp.json();
+              // 1. Fetch available actions to get the correct paths
+              const actionsResp = await fetch(
+                `https://api.picaos.com/v1/available-actions/notion?page=1&limit=50`,
+                { headers: { 'x-pica-secret': picaSecretKey } }
+              );
+              const actionsData = await actionsResp.json();
       
-      // Find the actions we need
-      const retrieveDatabaseAction = actionsData.rows?.find((a: any) => 
+              // Find the actions we need
+              const retrieveDatabaseAction = actionsData.rows?.find((a: any) => 
         a.key?.includes('retrievedatabase')
       );
-      const queryDataSourceAction = actionsData.rows?.find((a: any) => 
-        a.key?.includes('querydatasourcepages')
-      );
+              const queryDataSourceAction = actionsData.rows?.find((a: any) => 
+                a.key?.includes('querydatasourcepages')
+              );
 
       // 2. FIRST: Retrieve the Database Metadata to find the Data Source ID
-      const dbResponse = await fetch(
-        `https://api.picaos.com/v1/passthrough/databases/${databaseId}`,
-        {
-          method: 'GET',
-          headers: {
-            'x-pica-secret': picaSecretKey,
-            'x-pica-connection-key': picaNotionConnectionKey,
-            'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
-            'Content-Type': 'application/json',
-            'Notion-Version': '2025-09-03',
+              const dbResponse = await fetch(
+                `https://api.picaos.com/v1/passthrough/databases/${databaseId}`,
+                {
+                  method: 'GET',
+                  headers: {
+                    'x-pica-secret': picaSecretKey,
+                    'x-pica-connection-key': picaNotionConnectionKey,
+                    'x-pica-action-id': retrieveDatabaseAction?.key || 'api::notion::v1::database::get_one',
+                    'Content-Type': 'application/json',
+                    'Notion-Version': '2025-09-03',
           },
         }
       );
