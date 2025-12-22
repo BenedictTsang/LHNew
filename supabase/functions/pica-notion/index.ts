@@ -325,7 +325,8 @@ Deno.serve(async (req: Request) => {
           headers: {
           "x-pica-secret": picaSecretKey,
           "x-pica-connection-key": picaNotionConnectionKey,
-          "x-pica-action-id": dataSourceQueryAction?.key || "datasourcepages_query",
+          // CORRECT ACTION ID for "Retrieve a Page by ID"
+          "x-pica-action-id": "api::notion::v1::pages::get_one",
           "Content-Type": "application/json",
           "Notion-Version": "2025-09-03", 
         },
