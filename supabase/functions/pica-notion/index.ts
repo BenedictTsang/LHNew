@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const path = url.pathname;
 
     if (path.endsWith("/debug-raw")) {
-      const databaseId = "2559baca6fa38075b0f8e97713054434";
+      const databaseId = "a35db621-f94e-4a0b-9f53-6d895d6972d6";
       const results: Record<string, unknown> = {
         debug: {
           hasPicaSecretKey: !!picaSecretKey,
