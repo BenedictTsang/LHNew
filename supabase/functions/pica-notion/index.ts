@@ -171,7 +171,7 @@ Deno.serve(async (req: Request) => {
 
       // 2. FIRST: Retrieve the Database Metadata to find the Data Source ID
               const dbResponse = await fetch(
-                `https://api.picaos.com/v1/passthrough/databases/${databaseId}`,
+                `https://api.picaos.com/v1/passthrough/v1/databases/${databaseId}`,
                 {
                   method: 'GET',
                   headers: {
