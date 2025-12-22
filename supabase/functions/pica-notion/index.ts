@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
     }
 
         if (path.endsWith("/list-activities")) {
-      const databaseId = "2559baca6fa38075b0f8e97713054434";
+      const databaseId = "a35db621-f94e-4a0b-9f53-6d895d6972d6";
       
       // FETCH ACTIONS FIRST
       const actionsResp = await fetch("https://api.picaos.com/v1/available-actions/notion?page=1&limit=50", {
