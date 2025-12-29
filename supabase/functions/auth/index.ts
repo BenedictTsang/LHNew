@@ -162,6 +162,9 @@ Deno.serve(async (req: Request) => {
         password_input: password,
         role_input: role,
         display_name_input: display_name || null,
+        can_access_proofreading_input: false,
+        can_access_spelling_input: false,
+        can_access_learning_hub_input: false,
       });
 
       if (error) {
@@ -234,6 +237,9 @@ Deno.serve(async (req: Request) => {
             password_input: user.password,
             role_input: user.role,
             display_name_input: user.display_name || null,
+            can_access_proofreading_input: false,
+            can_access_spelling_input: false,
+            can_access_learning_hub_input: false,
           });
 
           if (error) {
