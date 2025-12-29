@@ -58,7 +58,12 @@ export const AdminPanel: React.FC = () => {
   }, [isAdmin]);
 
   const checkSuperAdmin = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) {
+      console.log('No current user ID, skipping super admin check');
+      return;
+    }
+
+    console.log('Checking super admin status for user:', currentUser.id);
 
     try {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/check-super-admin`;
@@ -71,10 +76,21 @@ export const AdminPanel: React.FC = () => {
         body: JSON.stringify({ adminUserId: currentUser.id }),
       });
 
+      if (!response.ok) {
+        console.error('Super admin check failed with status:', response.status);
+        setIsSuperAdmin(false);
+        return;
+      }
+
       const data = await response.json();
-      setIsSuperAdmin(data.isSuperAdmin || false);
+      console.log('Super admin check response:', data);
+
+      const isSuper = data.isSuperAdmin === true;
+      console.log('Setting isSuperAdmin to:', isSuper);
+      setIsSuperAdmin(isSuper);
     } catch (err) {
       console.error('Error checking super admin status:', err);
+      setIsSuperAdmin(false);
     }
   };
 
@@ -536,6 +552,9 @@ export const AdminPanel: React.FC = () => {
             {isSuperAdmin && (
               <p className="text-sm text-blue-600 font-medium mt-1">Super Admin - Full Access</p>
             )}
+            {!isSuperAdmin && (
+              <p className="text-sm text-slate-500 font-medium mt-1">Regular Admin Access</p>
+            )}
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -571,7 +590,9 @@ export const AdminPanel: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {users.map((user) => {
+                console.log('Rendering user row:', user.username, 'isSuperAdmin:', isSuperAdmin);
+                return (
                 <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                   <td className="px-6 py-4">
                     <div className="font-medium text-slate-800">{user.username}</div>
@@ -678,7 +699,8 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -494,12 +494,27 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/check-super-admin")) {
       const { adminUserId } = await req.json();
 
-      const { data: isSuperAdmin } = await supabase.rpc("is_first_admin", {
+      console.log("Checking super admin status for user:", adminUserId);
+
+      const { data: isSuperAdmin, error } = await supabase.rpc("is_first_admin", {
         check_user_id: adminUserId,
       });
 
+      if (error) {
+        console.error("Error checking super admin status:", error);
+        return new Response(
+          JSON.stringify({ isSuperAdmin: false, error: error.message }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      console.log("Super admin check result:", isSuperAdmin);
+
       return new Response(
-        JSON.stringify({ isSuperAdmin }),
+        JSON.stringify({ isSuperAdmin: isSuperAdmin === true }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
