@@ -38,6 +38,7 @@ export const AdminPanel: React.FC = () => {
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [showVerificationCode, setShowVerificationCode] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [createAsAdmin, setCreateAsAdmin] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -129,7 +130,7 @@ export const AdminPanel: React.FC = () => {
       users.push({
         username,
         password,
-        role: 'user',
+        role: createAsAdmin ? 'admin' : 'user',
         display_name: displayName && displayName.length > 0 ? displayName : undefined,
       });
     });
@@ -182,6 +183,7 @@ export const AdminPanel: React.FC = () => {
         setBulkUserText('');
         setValidUsers([]);
         setValidationErrors([]);
+        setCreateAsAdmin(false);
         setShowCreateModal(false);
         fetchUsers();
       } else {
@@ -585,6 +587,27 @@ export const AdminPanel: React.FC = () => {
               <p className="text-xs text-slate-500">Maximum 30 users at once. Password must be at least 6 characters.</p>
             </div>
             <form onSubmit={handleCreateUsers} className="space-y-4">
+              <div className="mb-4">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createAsAdmin}
+                    onChange={(e) => {
+                      setCreateAsAdmin(e.target.checked);
+                      if (bulkUserText.trim()) {
+                        validateBulkUserInput(bulkUserText);
+                      }
+                    }}
+                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-slate-700">
+                    Create as admin
+                  </span>
+                </label>
+                <p className="text-xs text-slate-500 mt-1 ml-8">
+                  When checked, all users will be created with full admin access and permissions
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Users to Create
@@ -625,6 +648,7 @@ export const AdminPanel: React.FC = () => {
                     setBulkUserText('');
                     setValidUsers([]);
                     setValidationErrors([]);
+                    setCreateAsAdmin(false);
                   }}
                   className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 px-4 rounded-lg transition"
                 >
