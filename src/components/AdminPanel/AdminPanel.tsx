@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Trash2, Shield, User, Key, FileEdit, Mic, Eye, EyeOff, Edit2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface User {
@@ -26,27 +26,57 @@ export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [bulkUserText, setBulkUserText] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validUsers, setValidUsers] = useState<Array<{username: string; password: string; role: 'admin' | 'user'; display_name?: string}>>([]);
   const [verificationCode, setVerificationCode] = useState('');
   const [resetPassword, setResetPassword] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editPassword, setEditPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissions>({});
   const [showVerificationCode, setShowVerificationCode] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [createAsAdmin, setCreateAsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
+      checkSuperAdmin();
     } else {
       setLoading(false);
     }
   }, [isAdmin]);
+
+  const checkSuperAdmin = async () => {
+    if (!currentUser?.id) return;
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/check-super-admin`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adminUserId: currentUser.id }),
+      });
+
+      const data = await response.json();
+      setIsSuperAdmin(data.isSuperAdmin || false);
+    } catch (err) {
+      console.error('Error checking super admin status:', err);
+    }
+  };
 
   const fetchUsers = async () => {
     if (!currentUser?.id) {
@@ -239,6 +269,87 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserId || !currentUser?.id) return;
+
+    setError(null);
+    setSuccess(null);
+    setIsProcessing(true);
+
+    try {
+      const updateData: any = {
+        adminUserId: currentUser.id,
+        userId: selectedUserId,
+      };
+
+      if (editUsername && editUsername !== selectedUser?.username) {
+        updateData.username = editUsername;
+      }
+      if (editDisplayName && editDisplayName !== selectedUser?.display_name) {
+        updateData.display_name = editDisplayName;
+      }
+      if (editRole !== selectedUser?.role) {
+        updateData.role = editRole;
+      }
+
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to update user');
+        setIsProcessing(false);
+        return;
+      }
+
+      if (editPassword && editPassword.length >= 6) {
+        const passwordApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/admin-reset-password`;
+        const passwordResponse = await fetch(passwordApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            adminUserId: currentUser.id,
+            userId: selectedUserId,
+            newPassword: editPassword,
+          }),
+        });
+
+        const passwordData = await passwordResponse.json();
+        if (!passwordResponse.ok) {
+          setError(passwordData.error || 'User updated but failed to change password');
+          setIsProcessing(false);
+          fetchUsers();
+          return;
+        }
+      }
+
+      setSuccess('User updated successfully');
+      setShowEditModal(false);
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      setEditUsername('');
+      setEditDisplayName('');
+      setEditPassword('');
+      fetchUsers();
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string, username: string) => {
     if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
       return;
@@ -386,6 +497,16 @@ export const AdminPanel: React.FC = () => {
     return Object.keys(pendingPermissions).length > 0;
   };
 
+  const openEditModal = (user: User) => {
+    setSelectedUser(user);
+    setSelectedUserId(user.id);
+    setEditUsername(user.username);
+    setEditDisplayName(user.display_name || '');
+    setEditRole(user.role);
+    setEditPassword('');
+    setShowEditModal(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -412,6 +533,9 @@ export const AdminPanel: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Admin Panel</h1>
             <p className="text-slate-600">Manage users and system settings</p>
+            {isSuperAdmin && (
+              <p className="text-sm text-blue-600 font-medium mt-1">Super Admin - Full Access</p>
+            )}
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -523,6 +647,15 @@ export const AdminPanel: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end space-x-2">
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="text-slate-600 hover:text-slate-700 p-2 rounded-lg hover:bg-slate-100 transition"
+                          title="Edit User"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setSelectedUserId(user.id);
@@ -533,7 +666,7 @@ export const AdminPanel: React.FC = () => {
                       >
                         <Key size={18} />
                       </button>
-                      {user.id !== currentUser?.id && (
+                      {isSuperAdmin && user.id !== currentUser?.id && (
                         <button
                           onClick={() => handleDeleteUser(user.id, user.username)}
                           className="text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition"
@@ -617,7 +750,7 @@ export const AdminPanel: React.FC = () => {
                   onChange={(e) => handleBulkUserTextChange(e.target.value)}
                   rows={10}
                   className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition font-mono text-sm"
-                  placeholder="student1, password123, John Doe\nstudent2, password456, Jane Smith\nstudent3, password789"
+                  placeholder="student1, password123, John Doe&#10;student2, password456, Jane Smith&#10;student3, password789"
                 />
               </div>
 
@@ -660,6 +793,106 @@ export const AdminPanel: React.FC = () => {
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-slate-400 disabled:cursor-not-allowed"
                 >
                   {isProcessing ? 'Creating...' : `Create ${validUsers.length} User${validUsers.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">Edit User</h2>
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="Enter username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="Enter display name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Role
+                </label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as 'admin' | 'user')}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  New Password (optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? "text" : "password"}
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    minLength={6}
+                    className="w-full px-4 py-3 pr-12 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                    placeholder="Leave blank to keep current password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                  >
+                    {showEditPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Password must be at least 6 characters if changing
+                </p>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedUserId(null);
+                    setSelectedUser(null);
+                    setEditUsername('');
+                    setEditDisplayName('');
+                    setEditPassword('');
+                  }}
+                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 px-4 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessing}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition disabled:bg-slate-400 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

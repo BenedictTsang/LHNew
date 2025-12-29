@@ -49,6 +49,20 @@ interface UpdatePermissionsRequest {
   can_access_spelling?: boolean;
 }
 
+interface UpdateUserRequest {
+  adminUserId: string;
+  userId: string;
+  username?: string;
+  display_name?: string;
+  role?: 'admin' | 'user';
+}
+
+interface AdminResetPasswordRequest {
+  adminUserId: string;
+  userId: string;
+  newPassword: string;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -438,28 +452,16 @@ Deno.serve(async (req: Request) => {
     if (path.endsWith("/delete-user")) {
       const { adminUserId, userIdToDelete } = await req.json();
 
-      const { data: admin } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", adminUserId)
-        .eq("role", "admin")
-        .maybeSingle();
+      const { data: canDelete } = await supabase.rpc("can_delete_user", {
+        caller_user_id: adminUserId,
+        target_user_id: userIdToDelete,
+      });
 
-      if (!admin) {
+      if (!canDelete) {
         return new Response(
-          JSON.stringify({ error: "Unauthorized" }),
+          JSON.stringify({ error: "Unauthorized. Only the super admin can delete users, and the super admin cannot be deleted." }),
           {
             status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      if (adminUserId === userIdToDelete) {
-        return new Response(
-          JSON.stringify({ error: "Cannot delete your own account" }),
-          {
-            status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
@@ -487,6 +489,100 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    if (path.endsWith("/check-super-admin")) {
+      const { adminUserId } = await req.json();
+
+      const { data: isSuperAdmin } = await supabase.rpc("is_first_admin", {
+        check_user_id: adminUserId,
+      });
+
+      return new Response(
+        JSON.stringify({ isSuperAdmin }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (path.endsWith("/update-user")) {
+      const { adminUserId, userId, username, display_name, role }: UpdateUserRequest = await req.json();
+
+      try {
+        const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
+          caller_user_id: adminUserId,
+          target_user_id: userId,
+          new_username: username || null,
+          new_display_name: display_name || null,
+          new_role: role || null,
+        });
+
+        if (error) {
+          return new Response(
+            JSON.stringify({ error: error.message || "Failed to update user" }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, user: updatedUser }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: "Failed to update user" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    if (path.endsWith("/admin-reset-password")) {
+      const { adminUserId, userId, newPassword }: AdminResetPasswordRequest = await req.json();
+
+      try {
+        const { data: success, error } = await supabase.rpc("admin_change_user_password", {
+          caller_user_id: adminUserId,
+          target_user_id: userId,
+          new_password: newPassword,
+        });
+
+        if (error) {
+          return new Response(
+            JSON.stringify({ error: error.message || "Failed to reset password" }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: "Failed to reset password" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     if (path.endsWith("/update-permissions")) {
