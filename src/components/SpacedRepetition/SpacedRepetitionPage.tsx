@@ -10,11 +10,6 @@ import { QuestionCard } from './QuestionCard';
 import { SessionSummary } from './SessionSummary';
 import { Login } from '../Auth/Login';
 
-type PageState =
-  | { type: 'hub' }
-  | { type: 'createNew'; source: 'manual' | 'csv' | 'notion' | 'anki' | 'google' | null  }
-  | { type: 'learning'; setId: string }
-  | { type: 'analytics' };
 
 interface PageState {
   type: 'hub' | 'createNew' | 'learning' | 'analytics';
