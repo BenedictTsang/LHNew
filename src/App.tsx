@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
+import { SpacedRepetitionProvider } from './context/SpacedRepetitionContext';
 import { useAppContext } from './context/AppContext';
 import { useAuth } from './context/AuthContext';
 import Navigation from './components/Navigation/Navigation';
@@ -29,6 +30,7 @@ import AssignmentManagement from './components/AssignmentManagement/AssignmentMa
 import UnifiedAssignments from './components/UnifiedAssignments/UnifiedAssignments';
 import GlobalDiagnosticPanel from './components/GlobalDiagnosticPanel/GlobalDiagnosticPanel';
 import LearningHub from './components/LearningHub/LearningHub';
+import { SpacedRepetitionPage } from './components/SpacedRepetition/SpacedRepetitionPage';
 import { Login } from './components/Auth/Login';
 import { ChangePasswordModal } from './components/Auth/ChangePasswordModal';
 import { Word, MemorizationState, ProofreadingAnswer, ProofreadingPractice, AssignedProofreadingPracticeContent } from './types';
@@ -58,7 +60,8 @@ type AppState =
   | { page: 'assignmentManagement' }
   | { page: 'proofreadingAssignments' }
   | { page: 'assignedPractice'; memorizationState: MemorizationState; assignmentId?: string }
-  | { page: 'learningHub' };
+  | { page: 'learningHub' }
+  | { page: 'spacedRepetition' };
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ page: 'new', step: 'input' });
@@ -162,9 +165,9 @@ function AppContent() {
     return <ChangePasswordModal isForced={true} />;
   }
 
-  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub') => {
+  const handlePageChange = (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition') => {
     // Check if user is trying to access restricted pages without authentication
-    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub')) {
+    if (!user && (page === 'saved' || page === 'admin' || page === 'database' || page === 'spelling' || page === 'progress' || page === 'assignments' || page === 'assignmentManagement' || page === 'proofreadingAssignments' || page === 'learningHub' || page === 'spacedRepetition')) {
       setShowLoginModal(true);
       return;
     }
@@ -221,6 +224,8 @@ function AppContent() {
       setAppState({ page: 'proofreadingAssignments' });
     } else if (page === 'learningHub') {
       setAppState({ page: 'learningHub' });
+    } else if (page === 'spacedRepetition') {
+      setAppState({ page: 'spacedRepetition' });
     }
   };
 
@@ -613,6 +618,8 @@ function AppContent() {
         return <AssignedProofreadingPractices onLoadContent={handleLoadAssignedProofreadingPractice} />;
       case 'learningHub':
         return <LearningHub />;
+      case 'spacedRepetition':
+        return <SpacedRepetitionPage />;
       case 'assignedPractice':
         return (
           <MemorizationView
@@ -628,7 +635,7 @@ function AppContent() {
     }
   };
 
-  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' => {
+  const getCurrentPage = (): 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition' => {
     if (appState.page === 'practice' || appState.page === 'publicPractice') {
       return 'saved';
     }
@@ -643,6 +650,9 @@ function AppContent() {
     }
     if (appState.page === 'learningHub') {
       return 'learningHub';
+    }
+    if (appState.page === 'spacedRepetition') {
+      return 'spacedRepetition';
     }
     if (appState.page === 'admin') {
       return 'admin';
@@ -719,8 +729,10 @@ function AppProviderWrapper() {
 
   return (
     <AppProvider userId={user?.id}>
-      <SourceInspector />
-      <AppContent />
+      <SpacedRepetitionProvider userId={user?.id}>
+        <SourceInspector />
+        <AppContent />
+      </SpacedRepetitionProvider>
     </AppProvider>
   );
 }

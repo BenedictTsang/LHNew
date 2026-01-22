@@ -260,3 +260,113 @@ export interface LearningQuestion {
   points?: number;
   pairs?: { left: string; right: string }[];
 }
+
+export interface SpacedRepetitionSet {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  total_questions: number;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpacedRepetitionQuestion {
+  id: string;
+  set_id: string;
+  question_text: string;
+  choices: string[];
+  correct_answer_index: number;
+  explanation?: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpacedRepetitionSchedule {
+  id: string;
+  user_id: string;
+  question_id: string;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  next_review_date: string;
+  last_reviewed_at?: string;
+  last_quality_rating?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpacedRepetitionAttempt {
+  id: string;
+  user_id: string;
+  question_id: string;
+  selected_answer_index: number;
+  is_correct: boolean;
+  response_time_ms?: number;
+  quality_rating?: number;
+  attempt_date: string;
+  created_at: string;
+}
+
+export interface UserStreak {
+  id: string;
+  user_id: string;
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_practice_date?: string;
+  total_cards_learned: number;
+  total_cards_mastered: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_type: string;
+  achievement_name: string;
+  description?: string;
+  icon_name?: string;
+  earned_at: string;
+  created_at: string;
+}
+
+export interface SetAssignment {
+  id: string;
+  set_id: string;
+  user_id: string;
+  assigned_by: string;
+  due_date?: string;
+  assigned_at: string;
+  created_at: string;
+}
+
+export interface SpacedRepetitionSessionState {
+  currentQuestionIndex: number;
+  questions: SpacedRepetitionQuestion[];
+  results: {
+    question_id: string;
+    selected_answer_index: number;
+    is_correct: boolean;
+    response_time_ms: number;
+    quality_rating?: number;
+  }[];
+  isCompleted: boolean;
+  sessionStartTime: number;
+  currentQuestionStartTime: number;
+}
+
+export interface SpacedRepetitionStats {
+  total_cards: number;
+  cards_mastered: number;
+  cards_learning: number;
+  cards_due_today: number;
+  average_ease: number;
+  today_accuracy: number;
+  current_streak: number;
+  longest_streak: number;
+}

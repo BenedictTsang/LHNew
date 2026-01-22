@@ -1,10 +1,10 @@
 import React from 'react';
-import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban, BookMarked, Lightbulb } from 'lucide-react';
+import { Home, Shield, FileEdit, LogOut, LogIn, Mic, TrendingUp, ClipboardList, Database, FolderKanban, BookMarked, Lightbulb, Zap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavigationProps {
-  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub';
-  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub') => void;
+  currentPage: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition';
+  onPageChange: (page: 'new' | 'saved' | 'admin' | 'database' | 'proofreading' | 'spelling' | 'progress' | 'assignments' | 'assignmentManagement' | 'proofreadingAssignments' | 'learningHub' | 'spacedRepetition') => void;
   userRole: string | null;
   onLogin?: () => void;
 }
@@ -93,6 +93,20 @@ const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange, user
             >
               <Lightbulb size={22} />
               <span>Integrated Learning Hub</span>
+            </button>
+          )}
+
+          {user && (user.can_access_spaced_repetition || user.role === 'admin') && (
+            <button
+              onClick={() => onPageChange('spacedRepetition')}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${
+                currentPage === 'spacedRepetition'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Zap size={22} />
+              <span>Spaced Repetition</span>
             </button>
           )}
 
