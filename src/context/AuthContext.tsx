@@ -11,15 +11,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
+    const validateStoredUser = async () => {
+      const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+
+          const { data: dbUser, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', parsedUser.id)
+            .maybeSingle();
+
+          if (!dbUser || error) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            setUser(null);
+          } else {
+            setUser(parsedUser);
+          }
+        } catch (e) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          setUser(null);
+        }
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+
+    validateStoredUser();
   }, []);
 
   const signIn = async (username: string, password: string) => {
