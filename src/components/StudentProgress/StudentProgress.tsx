@@ -24,6 +24,7 @@ const StudentProgress: React.FC = () => {
   const [proofreadingRankings, setProofreadingRankings] = useState<RankingEntry[]>([]);
   const [userSpellingRank, setUserSpellingRank] = useState<number | null>(null);
   const [userProofreadingRank, setUserProofreadingRank] = useState<number | null>(null);
+  const [classFilter, setClassFilter] = useState<string>('all');
 
   useEffect(() => {
     if (user) {
@@ -491,6 +492,22 @@ const StudentProgress: React.FC = () => {
 
         {activeTab === 'rankings' && (
           <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+              <div className="flex items-center space-x-4">
+                <label className="text-sm font-medium text-gray-700">Filter by Class:</label>
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                >
+                  <option value="all">All Classes</option>
+                  {Array.from(new Set([...spellingRankings, ...proofreadingRankings].map(r => r.class).filter(Boolean))).sort().map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-200">
                 <h3 className="text-xl font-semibold text-gray-800">Spelling Leaderboard</h3>
@@ -504,19 +521,20 @@ const StudentProgress: React.FC = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Rank</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Student</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Class</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Practices</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Avg Score</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {spellingRankings.length === 0 ? (
+                    {spellingRankings.filter(entry => classFilter === 'all' || entry.class === classFilter).length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                           No ranking data available yet
                         </td>
                       </tr>
                     ) : (
-                      spellingRankings.map((entry) => {
+                      spellingRankings.filter(entry => classFilter === 'all' || entry.class === classFilter).map((entry, index) => {
                         const isCurrentUser = entry.user_id === user?.id;
                         return (
                           <tr
@@ -526,16 +544,16 @@ const StudentProgress: React.FC = () => {
                             <td className="px-6 py-4">
                               <span
                                 className={`text-sm font-bold ${
-                                  Number(entry.rank) === 1
+                                  index === 0
                                     ? 'text-yellow-600'
-                                    : Number(entry.rank) === 2
+                                    : index === 1
                                     ? 'text-gray-500'
-                                    : Number(entry.rank) === 3
+                                    : index === 2
                                     ? 'text-orange-600'
                                     : 'text-gray-700'
                                 }`}
                               >
-                                #{entry.rank}
+                                #{index + 1}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -543,6 +561,7 @@ const StudentProgress: React.FC = () => {
                                 {entry.username} {isCurrentUser && '(You)'}
                               </span>
                             </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{entry.class || '-'}</td>
                             <td className="px-6 py-4 text-sm text-gray-900">{Number(entry.total_practices)}</td>
                             <td className="px-6 py-4">
                               <span className={`text-sm font-semibold ${getScoreColor(Number(entry.average_accuracy))}`}>
@@ -571,19 +590,20 @@ const StudentProgress: React.FC = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Rank</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Student</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Class</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Practices</th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Avg Score</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {proofreadingRankings.length === 0 ? (
+                    {proofreadingRankings.filter(entry => classFilter === 'all' || entry.class === classFilter).length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                           No ranking data available yet
                         </td>
                       </tr>
                     ) : (
-                      proofreadingRankings.map((entry) => {
+                      proofreadingRankings.filter(entry => classFilter === 'all' || entry.class === classFilter).map((entry, index) => {
                         const isCurrentUser = entry.user_id === user?.id;
                         return (
                           <tr
@@ -593,16 +613,16 @@ const StudentProgress: React.FC = () => {
                             <td className="px-6 py-4">
                               <span
                                 className={`text-sm font-bold ${
-                                  Number(entry.rank) === 1
+                                  index === 0
                                     ? 'text-yellow-600'
-                                    : Number(entry.rank) === 2
+                                    : index === 1
                                     ? 'text-gray-500'
-                                    : Number(entry.rank) === 3
+                                    : index === 2
                                     ? 'text-orange-600'
                                     : 'text-gray-700'
                                 }`}
                               >
-                                #{entry.rank}
+                                #{index + 1}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -610,6 +630,7 @@ const StudentProgress: React.FC = () => {
                                 {entry.username} {isCurrentUser && '(You)'}
                               </span>
                             </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{entry.class || '-'}</td>
                             <td className="px-6 py-4 text-sm text-gray-900">{Number(entry.total_practices)}</td>
                             <td className="px-6 py-4">
                               <span className={`text-sm font-semibold ${getScoreColor(Number(entry.average_accuracy))}`}>

@@ -11,6 +11,7 @@ interface User {
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   display_name?: string;
+  class?: string | null;
 }
 
 interface PendingPermissions {
@@ -38,6 +39,8 @@ export const AdminPanel: React.FC = () => {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
   const [editPassword, setEditPassword] = useState('');
+  const [editClass, setEditClass] = useState('');
+  const [classFilter, setClassFilter] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -308,6 +311,9 @@ export const AdminPanel: React.FC = () => {
       if (editRole !== selectedUser?.role) {
         updateData.role = editRole;
       }
+      if (editClass !== (selectedUser?.class || '')) {
+        updateData.class = editClass || null;
+      }
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth/update-user`;
       const response = await fetch(apiUrl, {
@@ -519,6 +525,7 @@ export const AdminPanel: React.FC = () => {
     setEditUsername(user.username);
     setEditDisplayName(user.display_name || '');
     setEditRole(user.role);
+    setEditClass(user.class || '');
     setEditPassword('');
     setShowEditModal(true);
   };
@@ -545,24 +552,40 @@ export const AdminPanel: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">Admin Panel</h1>
-            <p className="text-slate-600">Manage users and system settings</p>
-            {isSuperAdmin && (
-              <p className="text-sm text-blue-600 font-medium mt-1">Super Admin - Full Access</p>
-            )}
-            {!isSuperAdmin && (
-              <p className="text-sm text-slate-500 font-medium mt-1">Regular Admin Access</p>
-            )}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">Admin Panel</h1>
+              <p className="text-slate-600">Manage users and system settings</p>
+              {isSuperAdmin && (
+                <p className="text-sm text-blue-600 font-medium mt-1">Super Admin - Full Access</p>
+              )}
+              {!isSuperAdmin && (
+                <p className="text-sm text-slate-500 font-medium mt-1">Regular Admin Access</p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2"
+            >
+              <UserPlus size={20} />
+              <span>Create User</span>
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition flex items-center space-x-2"
-          >
-            <UserPlus size={20} />
-            <span>Create User</span>
-          </button>
+
+          <div className="flex items-center space-x-4">
+            <label className="text-sm font-medium text-slate-700">Filter by Class:</label>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            >
+              <option value="all">All Classes</option>
+              {Array.from(new Set(users.map(u => u.class).filter(Boolean))).sort().map(cls => (
+                <option key={cls} value={cls}>{cls}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {error && (
@@ -583,6 +606,7 @@ export const AdminPanel: React.FC = () => {
               <tr>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Username</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Display Name</th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Class</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Role</th>
                 <th className="text-center px-6 py-4 text-sm font-semibold text-slate-700">Permissions</th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Created</th>
@@ -590,7 +614,9 @@ export const AdminPanel: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {users
+                .filter(user => classFilter === 'all' || user.class === classFilter)
+                .map((user) => {
                 console.log('Rendering user row:', user.username, 'isSuperAdmin:', isSuperAdmin);
                 return (
                 <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
@@ -599,6 +625,9 @@ export const AdminPanel: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-slate-700">{user.display_name || user.username}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-slate-600">{user.class || '-'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium ${
@@ -851,6 +880,19 @@ export const AdminPanel: React.FC = () => {
                   onChange={(e) => setEditDisplayName(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                   placeholder="Enter display name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Class
+                </label>
+                <input
+                  type="text"
+                  value={editClass}
+                  onChange={(e) => setEditClass(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="e.g., A, B, Grade 9"
                 />
               </div>
 
