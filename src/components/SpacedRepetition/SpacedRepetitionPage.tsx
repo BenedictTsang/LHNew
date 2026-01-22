@@ -12,10 +12,7 @@ import { Login } from '../Auth/Login';
 
 type PageState =
   | { type: 'hub' }
-  | { type: 'createNew'; source: null }
-  | { type: 'createNew'; source: 'manual' }
-  | { type: 'createNew'; source: 'csv' }
-  | { type: 'createNew'; source: 'notion' | 'anki' | 'google' }
+  | { type: 'createNew'; source: 'manual' | 'csv' | 'notion' | 'anki' | 'google' | null  }
   | { type: 'learning'; setId: string }
   | { type: 'analytics' };
 
