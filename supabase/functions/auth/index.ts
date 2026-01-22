@@ -55,7 +55,6 @@ interface UpdateUserRequest {
   username?: string;
   display_name?: string;
   role?: 'admin' | 'user';
-  class?: string | null;
 }
 
 interface AdminResetPasswordRequest {
@@ -103,7 +102,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: user, error } = await supabase
         .from("users")
-        .select("id, username, role, force_password_change, accent_preference, can_access_proofreading, can_access_spelling, display_name, class")
+        .select("id, username, role, force_password_change, accent_preference, can_access_proofreading, can_access_spelling, display_name")
         .eq("username", username)
         .maybeSingle();
 
@@ -143,7 +142,6 @@ Deno.serve(async (req: Request) => {
             can_access_proofreading: user.can_access_proofreading || false,
             can_access_spelling: user.can_access_spelling || false,
             display_name: user.display_name || user.username,
-            class: user.class || null,
           },
         }),
         {
@@ -429,7 +427,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: users, error } = await supabase
         .from("users")
-        .select("id, username, role, created_at, can_access_proofreading, can_access_spelling, display_name, class")
+        .select("id, username, role, created_at, can_access_proofreading, can_access_spelling, display_name")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -525,7 +523,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (path.endsWith("/update-user")) {
-      const { adminUserId, userId, username, display_name, role, class: userClass }: UpdateUserRequest = await req.json();
+      const { adminUserId, userId, username, display_name, role }: UpdateUserRequest = await req.json();
 
       try {
         const { data: updatedUser, error } = await supabase.rpc("update_user_info", {
@@ -534,7 +532,6 @@ Deno.serve(async (req: Request) => {
           new_username: username || null,
           new_display_name: display_name || null,
           new_role: role || null,
-          new_class: userClass !== undefined ? userClass : null,
         });
 
         if (error) {

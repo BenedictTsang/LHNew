@@ -4,64 +4,22 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SESSION_STORAGE_KEY = 'session_id';
+const AUTH_STORAGE_KEY = 'auth_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    const validateSession = async () => {
-      const storedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
-      if (storedSessionId) {
-        try {
-          const { data: sessionData, error: sessionError } = await supabase
-            .rpc('validate_session', { session_id_input: storedSessionId });
-
-          if (sessionError || !sessionData || !sessionData[0]?.is_valid) {
-            localStorage.removeItem(SESSION_STORAGE_KEY);
-            setUser(null);
-            setSessionId(null);
-            setLoading(false);
-            return;
-          }
-
-          const validSession = sessionData[0];
-          const { data: dbUser, error: userError } = await supabase
-            .from('users')
-            .select('id, username, role, force_password_change, accent_preference, can_access_proofreading, can_access_spelling, display_name, class')
-            .eq('id', validSession.user_id)
-            .maybeSingle();
-
-          if (!dbUser || userError) {
-            localStorage.removeItem(SESSION_STORAGE_KEY);
-            setUser(null);
-            setSessionId(null);
-          } else {
-            setUser({
-              id: dbUser.id,
-              username: dbUser.username,
-              role: dbUser.role,
-              force_password_change: dbUser.force_password_change,
-              accent_preference: dbUser.accent_preference || 'en-US',
-              can_access_proofreading: dbUser.can_access_proofreading || false,
-              can_access_spelling: dbUser.can_access_spelling || false,
-              display_name: dbUser.display_name || dbUser.username,
-              class: dbUser.class || null,
-            });
-            setSessionId(storedSessionId);
-          }
-        } catch (e) {
-          localStorage.removeItem(SESSION_STORAGE_KEY);
-          setUser(null);
-          setSessionId(null);
-        }
+    const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
       }
-      setLoading(false);
-    };
-
-    validateSession();
+    }
+    setLoading(false);
   }, []);
 
   const signIn = async (username: string, password: string) => {
@@ -83,17 +41,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: new Error(data.error || 'Login failed') };
       }
 
-      const { data: sessionData, error: sessionError } = await supabase
-        .rpc('create_session', { user_id_input: data.user.id });
-
-      if (sessionError || !sessionData || !sessionData[0]) {
-        return { error: new Error('Failed to create session') };
-      }
-
-      const newSessionId = sessionData[0].session_id;
       setUser(data.user);
-      setSessionId(newSessionId);
-      localStorage.setItem(SESSION_STORAGE_KEY, newSessionId);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data.user));
 
       return { error: null };
     } catch (error) {
@@ -102,16 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    if (sessionId) {
-      try {
-        await supabase.rpc('delete_session', { session_id: sessionId });
-      } catch (error) {
-        console.error('Error deleting session:', error);
-      }
-    }
     setUser(null);
-    setSessionId(null);
-    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   const changePassword = async (
@@ -148,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const updatedUser = { ...user, force_password_change: false };
       setUser(updatedUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
 
       return { error: null };
     } catch (error) {
@@ -173,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const updatedUser = { ...user, accent_preference: accent };
       setUser(updatedUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
     } catch (error) {
       console.error('Failed to update accent preference:', error);
     }

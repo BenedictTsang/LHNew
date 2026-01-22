@@ -74,12 +74,12 @@ export interface UserProfile {
   username: string;
   role: 'admin' | 'user';
   force_password_change: boolean;
+  created_at: string;
+  updated_at: string;
   accent_preference?: string;
   can_access_proofreading?: boolean;
   can_access_spelling?: boolean;
   can_access_learning_hub?: boolean;
-  display_name?: string;
-  class?: string | null;
 }
 
 export interface AuthContextType {
@@ -191,7 +191,6 @@ export interface RankingEntry {
   total_practices: number;
   average_accuracy: number;
   rank: number;
-  class?: string | null;
 }
 
 export interface MemorizationAssignment {
