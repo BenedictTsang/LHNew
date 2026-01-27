@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
+import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
 export const Login: React.FC = () => {
   const { signIn, loading } = useAuth();
@@ -9,6 +10,7 @@ export const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +107,21 @@ export const Login: React.FC = () => {
             </span>
           </button>
         </form>
+
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <button
+            onClick={() => setShowResetModal(true)}
+            className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium transition"
+          >
+            Admin Password Reset
+          </button>
+        </div>
       </div>
+
+      <AdminPasswordResetModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+      />
     </div>
   );
 };
