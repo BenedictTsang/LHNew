@@ -51,9 +51,13 @@ export const AdminPasswordResetModal: React.FC<AdminPasswordResetModalProps> = (
         }
       );
 
+      if (!response.ok) {
+        throw new Error('Request failed');
+      }
+
       const data = await response.json();
 
-      if (data[0]?.reset_admin_password_by_code?.success) {
+      if (data?.success) {
         setSuccess(true);
         setResetCode('');
         setNewPassword('');
@@ -63,7 +67,7 @@ export const AdminPasswordResetModal: React.FC<AdminPasswordResetModalProps> = (
           setSuccess(false);
         }, 2000);
       } else {
-        setError(data[0]?.reset_admin_password_by_code?.message || 'Reset failed');
+        setError(data?.message || 'Reset failed');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
